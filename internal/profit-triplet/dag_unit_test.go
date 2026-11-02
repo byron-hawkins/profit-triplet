@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"experimental/profit-triplet/pkg/util"
+	"demo/profit-triplet/pkg/util"
 )
 
 func TestGraph(test *testing.T) {

@@ -8,7 +8,7 @@ import (
  "github.com/rishabhofficial/golang-standard-template-library/containers/vector"
  "github.com/rdleal/intervalst/interval"
 
-	"experimental/profit-triplet/pkg/util"
+	"demo/profit-triplet/pkg/util"
 )
 
 /* @+atomic.Int32: data-model n int32 */

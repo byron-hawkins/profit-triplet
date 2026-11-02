@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"experimental/profit-triplet/pkg/util"
-	"experimental/profit-triplet/internal/profit-triplet"
+	"demo/profit-triplet/pkg/util"
+	"demo/profit-triplet/internal/profit-triplet"
 )
 
 func main() {
@@ -23,12 +23,7 @@ func main() {
 	fmt.Println(itemcount)
 
 	input := util.Generate(itemcount)
-	// for i := range util.Min(len(input), 3) {
-	// 	fmt.Println(i, ":", input[i])
-	// }
 
  	set := dag.NewPriceSpanSet()
  	set.GraphWalk(input)
-
-	// treetest()
 }

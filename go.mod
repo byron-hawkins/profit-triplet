@@ -1,4 +1,4 @@
-module experimental/profit-triplet
+module demo/profit-triplet
 
 go 1.25.10
 

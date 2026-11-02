@@ -3,7 +3,7 @@ package util_test
 import (
 	"testing"
 
-	"experimental/profit-triplet/pkg/util"
+	"demo/profit-triplet/pkg/util"
 )
 
 func TestGenerate(test *testing.T) {

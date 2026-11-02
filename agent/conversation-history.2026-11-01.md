@@ -6,7 +6,7 @@ This note summarizes the requests, decisions, proposed approaches, and changes m
 
 - Asked for the normal shell's `GOPATH`. Ran `go env GOPATH`; it returned `/home/prism/lab/go`.
 - Asked to run `go test .`. The first execution was denied; on retry it failed because there are no Go files at the workspace root.
-- Asked to run `go test experimental/profit-triplet/test/util`. It passed (cached).
+- Asked to run `go test demo/profit-triplet/test/util`. It passed (cached).
 - Asked to run `go test ./test/profit-triplet`. It passed. The assistant initially answered only that this command ran, though the request had phrased it as running `dag_test`.
 
 ## Input generation distribution test
