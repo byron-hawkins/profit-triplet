@@ -1,0 +1,42 @@
+<annotation> ::= <element-annotation> | <summary-annotation> | <data-model-annotation>
+
+<element-annotation> ::= "/* @-" <element-tag> <element-list> <comment-close> <source-newline> <source-line>
+<element-tag> ::= <type-prefix> <function> <element-locator>
+<type-prefix> ::= <package> <type-name> "." | ""
+<package> ::= <package-name> "." | ""
+<element-locator> ::= "#" <element-id> | "()"
+<element-list> ::= <relates> <inline-elements> | <relates> <inline-elements> <invariant-list> | <relates> <invariant-list> | " "
+<inline-elements> ::= <element-label-list> | <element-label-list> <newline> <alias> | <alias>
+<element-label-list> ::= <element-label> | <element-label> ", " <element-label-list>
+<element-label> ::= "predicate" | "panic" | "loophead" | "call"
+<source-line> ::= (a single line of source code in the golang program)
+
+<summary-annotation> ::= "/* @+" <summary-tag> <relates> <alias> <comment-close>
+<summary-tag> ::= <package> <type-name> "." <function>
+<function> ::= <function-name> | <function-signature>
+
+<data-model-annotation> ::= "/* @+" <data-model-tag> <data-model-name> " " <go> <comment-close>
+<data-model-tag> ::= <package> <type-name> ": data-model"
+
+<invariant-list> ::= <newline> <invariant> | <newline> <invariant> <invariant-list>
+<invariant> ::= "(?)" <invariant-role> ": " <go>
+<invariant-role> ::= "pre-condition" | "post-condition"
+<maybe-invariant-list> ::= <invariant-list> | ""
+
+<alias> ::= <maybe-newline> "alias " <go> <substitution-list>
+<substitution-list> ::= <newline> <substitution> <substitution-list> | ""
+<substitution> ::= "%values[" <index> "]: " <value-list> <maybe-invariant-list>
+<value-list> ::= <value> | <value> <value-list>
+<value> ::= <newline> "  " <variable> <type-name> <relates> <go>
+<index> ::= (numeric, distinct per <alias>)
+<variable> ::= "%" <variable-name>
+
+<relates> ::= ":" <maybe-space>
+<maybe-newline> ::= <newline> | ""
+<newline> ::= <source-newline> " * "
+<source-newline> ::= "\n" | "\r\n"
+<maybe-space> ::= " " | ""
+<comment-close> ::= "*/" | "\n */" | "\r\n */"
+
+<go> ::= (free-form inline golang, excluding newline and "*/",possibly containing <variable> for <substitution-list>)
+<function-signature> ::= (a non-trivial golang function signature)
