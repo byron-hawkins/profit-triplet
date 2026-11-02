@@ -23,7 +23,7 @@ import (
 
 /* @+interval.SearchTree: data-model EverInserted []*Item */
 /* @+interval.SearchTree.AllIntersections(a int, b int):
- * alias func (tree *interval.SearchTree) AllIntersections(a int, b int) { return tree.EverInserted[%i, %i + %count], %matched }
+ * alias func (tree *interval.SearchTree) AllIntersections(a int, b int) { slice := tree.EverInserted[%i, %i + %count]; return slice, %matched }
  * %values[0]:
  *   %i int: %i >= 0 && %i < (len(tree.EverInserted) - %count)
  *   %count int: count > 0 && count <= len(tree.EverInserted)
@@ -33,6 +33,7 @@ import (
  *   %i int: (len(tree.EverInserted) == 0 && %i == 0) || (%i >= 0 && %i < len(tree.EverInserted))
  *   %count int: count == 0
  *   %matched bool: matched == false
+ * (?)post-condition: func() bool { for _, i := range slice { if i.Price.Base > a { return false } }; return true }()
  */
 
 type PriceSpan struct {
@@ -141,7 +142,9 @@ func (set *PriceSpanSet) String() string {
 	return strings.Join(lines, "\n")
 }
 
-/* @-PriceSpanSet.GraphWalk() */
+/* @-PriceSpanSet.GraphWalk()
+ * (?)pre-condition: func() bool { for _, i := range input { if i.Price <= 0 || i.Price >= 10000 { return false } }; return true }()
+ */
 func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate */
 	for _, i := range input {
@@ -177,7 +180,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) {
 		for _, match := range matches {
 			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
 			if item.Price.Base < match.Price.Bound {
-			  /* @-PriceSpanSet.GraphStep#MatchTruncate */
+				/* @-PriceSpanSet.GraphStep#MatchTruncate: call */
 				e := set.ItemTruncate(match, item.Price.Base)
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
@@ -186,7 +189,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) {
 				}
 				/* @-PriceSpanSet.GraphStep#MatchLink: call */
 				match.Link(item)
-			} else {
+			} else {   // better here to just merge the better margin into the match and skip this input?
 				/* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call */
 				for _, predecessor := range match.AllIn {
 					/* @-PriceSpanSet.GraphBranchSamePrice: call */
@@ -197,8 +200,14 @@ func (set *PriceSpanSet) GraphStep(item *Item) {
 	}
 }
 
+/* @-PriceSpanSet.ItemTruncate() */
 func (set *PriceSpanSet) ItemTruncate(item *Item, at int) error {
+	/* @-PriceSpanSet.ItemTruncate#Delete */
 	set.tree.Delete(item.Price.Base, item.Price.Bound)
+	/* @-PriceSpanSet.ItemTruncate#Truncate */
 	item.Price.Bound = at
-	return set.tree.Insert(item.Price.Base, item.Price.Bound, item)
+	/* @-PriceSpanSet.ItemTruncate#Insert: alias set.tree.EverInserted = append(set.tree.EverInserted, item)
+	 * (?)pre-condition: item.Price.Bound > item.Price.Base
+	 */
+  return set.tree.Insert(item.Price.Base, item.Price.Bound, item)  // bug: collapsed bounds
 }

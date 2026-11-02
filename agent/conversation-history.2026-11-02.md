@@ -86,3 +86,63 @@ The project is using an agentic proof workflow:
 6. Simplify the proof scope only when the developer explicitly chooses which details can be abstracted away.
 
 The most important distinction is between a true mathematical argument and evidence that its premises hold. Here the local `Link` lemma is understandable, but the current query-history contracts do not yet justify all premises needed at its call sites.
+
+## Later work and proof updates (afternoon/evening)
+
+The following items were added after the initial summary above. Where they
+conflict with its earlier “current status” bullets, this later addendum
+records the subsequent annotation and proof state.
+
+- Regenerated `model/doc/dag.cfg.md` after model documents were split into
+  `model/meta`, `model/proof`, `model/bug`, and `model/doc`. The refreshed CFG
+  includes the then-current vector and atomic summaries, `AllIn`, and
+  separate call-site references for `GraphWalk` and `GraphStep`.
+- Created `model/doc/model-check-results.md` to summarize proof documents,
+  bug reports, and supporting test output. The test mutation campaign starts
+  from 10 generated inputs, creates 10 copies with either a relevant price
+  mutation or an input swap, and tests the original plus all copies. A later
+  captured run failed on `input-8` (the eighth mutated copy) with an
+  equal-endpoint interval at price `162`; the log does not reveal which
+  mutation was applied.
+- `GraphWalk` gained a boolean precondition constraining every input price to
+  `1..9999`. The initial version was statement syntax rather than a boolean
+  expression; it was subsequently changed to an immediately invoked
+  `func() bool` loop. Under that precondition, the constructor establishes
+  `Base` in `[1,9999]` and `Bound == math.MaxInt32`.
+- Added `model/proof/fresh-item-valid.md`, proving the
+  `GraphWalk#InsertItem` range condition under the input-range precondition
+  and the previously established link-freshness fact. The proof applies the
+  `GraphStep#MatchTruncate` alias to the matched item's bound and uses
+  `match != item` to show the current new item's price is unaffected.
+- `ItemTruncate` became proof-reachable through a `call` label. Its truncate
+  assignment sets the matched item's `Bound` to the query price; the
+  subsequent `ItemTruncate#Insert` precondition requires `Bound > Base`.
+  The earlier report used a broad query abstraction and a `Base > a`
+  counterexample. The `AllIntersections` postcondition was then changed to
+  require returned items have `Base <= a`, allowing item bases below the
+  query price but also allowing equality.
+- The final counterexample to `ItemTruncate#Insert` uses duplicate prices:
+  inputs `[20, 30, 20]`. The abstract query for the third item may return the
+  first item with `Base == a == 20`; the caller guard `a < match.Bound` holds,
+  but truncation sets `Bound == Base == 20`, refuting the strict precondition.
+  The corrected report is `model/bug/invalid-item-rescope.md`. Initial
+  `GraphWalk#InsertItem` validity does not prevent this because the
+  `ItemTruncate` mutation changes an object already referenced in
+  `EverInserted`.
+- Updated `model/doc/model-check-results.md` to list the new range proof and
+  the corrected equal-price bug separately. The earlier entries are grouped
+  under an “Existing results” section explicitly marked as associated with
+  git branch `iteration/bug-hunt-1`, not top-of-trunk content.
+
+## Latest proof state
+
+- **Established conditionally:** `GraphWalk#InsertItem`'s precondition, via
+  `model/proof/fresh-item-valid.md`, assuming its input precondition and
+  match freshness.
+- **Refuted in the current annotated abstraction:** the precondition on
+  `ItemTruncate#Insert`, via
+  `model/bug/invalid-item-rescope.md`, because the query postcondition permits
+  `match.Price.Base == a`.
+- **Still distinct:** the prior `Item.out` acyclicity argument depends on
+  freshness; it is not itself a proof that every interval truncation remains
+  a valid nonempty span.
