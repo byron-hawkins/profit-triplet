@@ -1,0 +1,113 @@
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [3,6]
+• 2: [434 - 465) @ 18 in[] x out [3,5,7]
+• 3: [923 -) @ 864 in[2,1] x out []
+• 4: [144 - 162) @ 112 in[] x out [5,7,8]
+• 5: [647 - 657) @ 84 in[4,2] x out [6,10]
+• 6: [864 -) @ 392 in[5,1] x out []
+• 7: [465 - 657) @ 171 in[4,2] x out [10]
+• 8: [162 - 362) @ 21 in[4] x out [9]
+• 9: [362 - 657) @ 192 in[8] x out [10]
+• 10: [657 -) @ 310 in[9,7,5] x out []
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [4,6]
+• 2: [434 - 465) @ 18 in[] x out [4,5,7]
+• 3: [144 - 162) @ 112 in[] x out [4,5,7,8]
+• 4: [923 -) @ 864 in[3,2,1] x out []
+• 5: [647 - 657) @ 84 in[3,2] x out [6,10]
+• 6: [864 -) @ 392 in[5,1] x out []
+• 7: [465 - 657) @ 171 in[3,2] x out [10]
+• 8: [162 - 362) @ 21 in[3] x out [9]
+• 9: [362 - 657) @ 192 in[8] x out [10]
+• 10: [657 -) @ 310 in[9,7,5] x out []
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [3,6]
+• 2: [647 - 657) @ 84 in[] x out [3,6,10]
+• 3: [923 -) @ 864 in[2,1] x out []
+• 4: [144 - 162) @ 112 in[] x out [5,8]
+• 5: [434 - 465) @ 18 in[4] x out [6,7]
+• 6: [864 -) @ 392 in[5,2,1] x out []
+• 7: [465 - 657) @ 171 in[5] x out [10]
+• 8: [162 - 362) @ 21 in[4] x out [9]
+• 9: [362 - 657) @ 192 in[8] x out [10]
+• 10: [657 -) @ 310 in[9,7,2] x out []
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [3,6]
+• 2: [434 - 465) @ 18 in[] x out [3,5,7]
+• 3: [923 -) @ 864 in[2,1] x out []
+• 4: [144 - 162) @ 112 in[] x out [5,7,9,10]
+• 5: [647 - 657) @ 84 in[4,2] x out [6,8]
+• 6: [864 -) @ 392 in[5,1] x out []
+• 7: [465 - 657) @ 171 in[4,2] x out [8]
+• 8: [657 -) @ 310 in[7,5] x out []
+• 9: [362 -) @ 192 in[4] x out []
+• 10: [162 -) @ 21 in[4] x out []
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [3,6]
+• 2: [465 - 647) @ 171 in[] x out [3,5]
+• 3: [923 -) @ 864 in[2,1] x out []
+• 4: [144 - 162) @ 112 in[] x out [5,7,8]
+• 5: [647 - 657) @ 84 in[4,2] x out [6,10]
+• 6: [864 -) @ 392 in[5,1] x out []
+• 7: [434 - 657) @ 18 in[4] x out [10]
+• 8: [162 - 362) @ 21 in[4] x out [9]
+• 9: [362 - 657) @ 192 in[8] x out [10]
+• 10: [657 -) @ 310 in[9,7,5] x out []
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [6]
+• 2: [434 - 465) @ 18 in[] x out [5,7]
+• 3: [155 - 162) @ 864 in[] x out [5,7,8]
+• 4: [144 - 162) @ 112 in[] x out [5,7,8]
+• 5: [647 - 657) @ 84 in[4,3,2] x out [6,10]
+• 6: [864 -) @ 392 in[5,1] x out []
+• 7: [465 - 657) @ 171 in[4,3,2] x out [10]
+• 8: [162 - 362) @ 21 in[4,3] x out [9]
+• 9: [362 - 657) @ 192 in[8] x out [10]
+• 10: [657 -) @ 310 in[9,7,5] x out []
+• PriceSpanSet:
+• 1: [74 - 144) @ 282 in[] x out [2,4]
+• 2: [434 - 465) @ 18 in[1] x out [3,5,7]
+• 3: [923 -) @ 864 in[2] x out []
+• 4: [144 - 162) @ 112 in[1] x out [5,7,8]
+• 5: [647 - 657) @ 84 in[4,2] x out [6,10]
+• 6: [864 -) @ 392 in[5] x out []
+• 7: [465 - 657) @ 171 in[4,2] x out [10]
+• 8: [162 - 362) @ 21 in[4] x out [9]
+• 9: [362 - 657) @ 192 in[8] x out [10]
+• 10: [657 -) @ 310 in[9,7,5] x out []
+• PriceSpanSet:
+• 1: [856 - 864) @ 282 in[] x out [6]
+• 2: [434 - 465) @ 18 in[] x out [5,7]
+• 3: [342 - 362) @ 864 in[] x out [5,7,9]
+• 4: [144 - 162) @ 112 in[] x out [5,7,8]
+• 5: [647 - 657) @ 84 in[4,3,2] x out [6,10]
+• 6: [864 -) @ 392 in[5,1] x out []
+• 7: [465 - 657) @ 171 in[4,3,2] x out [10]
+• 8: [162 - 362) @ 21 in[4] x out [9]
+• 9: [362 - 657) @ 192 in[8,3] x out [10]
+• 10: [657 -) @ 310 in[9,7,5] x out []
+--- FAIL: TestGraph (0.00s)
+    --- FAIL: TestGraph/input-8 (0.00s)
+panic: interval search tree invalid range: start value 162 cannot be less than or equal to end value 162 [recovered, repanicked]
+
+goroutine 26 [running]:
+testing.tRunner.func1.2({0x562b40, 0xc00011f020})
+	/usr/lib/golang/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+	/usr/lib/golang/src/testing/testing.go:1875 +0x35b
+panic({0x562b40?, 0xc00011f020?})
+	/usr/lib/golang/src/runtime/panic.go:783 +0x132
+demo/profit-triplet/internal/profit-triplet.(*PriceSpanSet).GraphStep(0xc00011ef80, 0xc000158230)
+	/home/prism/lab/work/demo/profit-triplet/internal/profit-triplet/dag.go:185 +0x105
+demo/profit-triplet/internal/profit-triplet.(*PriceSpanSet).GraphWalk(0xc00011ef80, {0xc000136500?, 0xa, 0x2000000000000?})
+	/home/prism/lab/work/demo/profit-triplet/internal/profit-triplet/dag.go:152 +0x1c5
+demo/profit-triplet/internal/profit-triplet.testGraphIsAcyclic(0xc000103880, {0xc000136500, 0xa, 0xa})
+	/home/prism/lab/work/demo/profit-triplet/internal/profit-triplet/dag_unit_test.go:107 +0xca
+demo/profit-triplet/internal/profit-triplet.TestGraph.func1(0xc000103880?)
+	/home/prism/lab/work/demo/profit-triplet/internal/profit-triplet/dag_unit_test.go:21 +0x1f
+testing.tRunner(0xc000103880, 0xc000133f20)
+	/usr/lib/golang/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 17
+	/usr/lib/golang/src/testing/testing.go:1997 +0x465
+FAIL	demo/profit-triplet/internal/profit-triplet	0.015s
+FAIL
