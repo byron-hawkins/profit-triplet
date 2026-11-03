@@ -1,4 +1,8 @@
-<annotation> ::= <element-annotation> | <summary-annotation> | <data-model-annotation>
+(* Semantic naming and annotation rules supplement this grammar; see
+   symbolic-abstraction-rules.md. Fresh-name uniqueness is a semantic
+   constraint and is not expressed by these BNF productions. *)
+
+<annotation> ::= <element-annotation> | <summary-annotation> | <data-model-annotation> | <abstract-model-annotation>
 
 <element-annotation> ::= "/* @-" <element-tag> <element-list> <comment-close> <source-newline> <source-line>
 <element-tag> ::= <type-prefix> <function> <element-locator>
@@ -18,12 +22,18 @@
 <data-model-annotation> ::= "/* @+" <data-model-tag> <data-model-name> " " <go> <comment-close>
 <data-model-tag> ::= <package> <type-name> ": data-model"
 
+<abstract-model-annotation> ::= "/* @^" <abstract-model-name> <relates> <source-newline> <go+> <comment-close>
+
 <invariant-list> ::= <newline> <invariant> | <newline> <invariant> <invariant-list>
-<invariant> ::= "(?)" <invariant-role> ": " <go>
+<invariant> ::= "(?)" <invariant-role> ": " <invariant-definition>
+<invariant-definition> ::= <go> | <abstract-model-name>
 <invariant-role> ::= "pre-condition" | "post-condition"
 <maybe-invariant-list> ::= <invariant-list> | ""
 
-<alias> ::= <maybe-newline> "alias " <go> <substitution-list>
+<alias> ::= <maybe-newline> "alias " <alias-definition>
+<alias-definition> ::= <alias-inline> | <alias-model>
+<alias-inline> ::= <go> <substitution-list>
+<alias-model> ::= <abstract-model-name> <substitution-list>
 <substitution-list> ::= <newline> <substitution> <substitution-list> | ""
 <substitution> ::= "%values[" <index> "]: " <value-list> <maybe-invariant-list>
 <value-list> ::= <value> | <value> <value-list>
@@ -39,4 +49,5 @@
 <comment-close> ::= "*/" | "\n */" | "\r\n */"
 
 <go> ::= (free-form inline golang, excluding newline and "*/",possibly containing <variable> for <substitution-list>)
+<go+> ::= (free-form golang, including newlines but excluding comments, including an unmatched closing comment)
 <function-signature> ::= (a non-trivial golang function signature)

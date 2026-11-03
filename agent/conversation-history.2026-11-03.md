@@ -116,3 +116,72 @@ proof goals.
 - Next step: finish selecting the exact quantifiers and root/universe
   abstraction, then revise `purchasable-goals.md` to match that agreed
   statement before attempting proof or counterexample generation.
+
+## Twin-chain and `Item.Join` follow-up
+
+- Rechecking `linked-item-fresh.md` after the twin-link loop changed found
+  that freshness of the current destination alone was insufficient: every
+  source reached by following `twin` also had to be shown distinct from the
+  current item.
+- The freshness proof was updated with a uniform-`Price.Base` invariant for
+  twin chains. Under the current `AllIntersections` and `Find` aliases, the
+  two `Item.Join` call paths join equal-base items. In the twin-link loop,
+  the match base is strictly less than the current item's base, so no
+  reached twin can be the current item. This establishes the `Item.Link`
+  source-distinctness obligation at that loop, conditional on the stated
+  identity and alias premises.
+- A separate twin-chain acyclicity goal is necessary for proving that
+  twin traversals terminate. A prior `Item.Join` contract attempt was not
+  provable; its precondition failed at a reachable `MatchTruncate` call in
+  the then-current behavior.
+- `GraphStep#FauxMatch` was subsequently added to skip a match whose bound
+  equals the current base. Under the present annotations this removes the
+  direct self-join route in `MatchTruncate`: a non-skipped match has
+  `match.Bound > at`, and `Find(match.Base, at)` occurs before mutation, so
+  it cannot return that same match. The other join with the fresh current
+  item is also not a direct self-join. This does not establish the general
+  `Item.Join` precondition or twin-chain acyclicity.
+- `PriceSpanSet.roots` does not, by itself, prove the `Item.Join`
+  precondition. Root coverage does not rule out an argument that already
+  has a non-nil twin or establish that a splice preserves an acyclic chain.
+
+## Abstract-model BNF and proof status
+
+- The symbolic-abstraction grammar now declares
+  `<abstract-model-annotation>` using `<abstract-model-name>`, optional
+  relation punctuation, a newline, and multiline `<go+>` content. The
+  `dag.go` declarations `PriceBounds` and `InputSizeBounds` use multiline
+  bodies, and `GraphWalk` refers to both names as preconditions.
+- The naming rules in
+  `model/meta/symbolic-abstraction-rules.md` specify that `*-name`
+  nonterminals stand for freely chosen identifier spellings: declarations
+  introduce fresh names and later occurrences are references to those
+  declarations. They also clarify that ordinary BNF cannot express this
+  cross-occurrence freshness/resolution constraint by itself.
+- A parsing attempt accepted the targeted abstract-model declaration
+  shape and name references after the syntax update, but did not confirm
+  whole-grammar coherence: `<element-id>` remains undefined in the visible
+  BNF, and the rules do not yet define how free variables in a named model
+  body are bound at use sites.
+- The recommended direction for resolving the latter issue was explicit
+  model parameters and argument substitutions (e.g.
+  `PriceBounds(container, sequence)` referenced as
+  `PriceBounds(set, input)`), rather than implicitly capturing every
+  identifier in scope. This makes dependencies, arity, and types explicit.
+  The developer agreed callers are already handled by Go call semantics
+  and deferred the design decision for later.
+- No proofs of `PriceBounds` or `InputSizeBounds` were completed. The
+  immediate blocker is finalizing the grammar/model binding semantics; after
+  that, each model's guarantees and caller obligations can be checked.
+
+## Resume point
+
+- Resume by discussing whether/how to parameterize abstract-model
+  declarations and references, including arity and type rules, while
+  retaining Go's ordinary function-call semantics for callers.
+- Once the syntax and name/binding rules are agreed, re-parse the
+  annotations and assess whole-BNF coherence before attempting the two
+  named precondition proofs.
+- Keep the twin-chain acyclicity obligation distinct from direct
+  self-join avoidance; neither roots coverage nor `FauxMatch` alone proves
+  general acyclicity.

@@ -8,7 +8,8 @@ At each `Item.Link(from, item)` call reached during `GraphStep`:
 2. `item.out` is empty.
 
 Thus the `Item.Link` precondition `to.out.Empty() && from != to` holds at
-`GraphStep#MatchLink` and `GraphStep#GraphBranchSamePrice`.
+`GraphStep#MatchLink` (including each iteration of the twin-chain loop) and
+`GraphStep#GraphBranchSamePrice`.
 
 The proof is for the current annotated abstraction. It does not establish
 refinement of the external vector or interval-tree implementations.
@@ -27,7 +28,7 @@ refinement of the external vector or interval-tree implementations.
   calls marked `call` use their annotated bodies or summaries.
 
 The input-price range and `GraphWalk#InsertItem` price precondition are not
-needed for the two `Item.Link` call-site obligations established here.
+needed for the `Item.Link` call-site obligations established here.
 
 ## Lemma 1: every tree-history entry is an earlier item object
 
@@ -43,7 +44,7 @@ There are two annotated operations that append to this history:
 - `GraphWalk#InsertItem` appends the current `&item`, but only after
   `GraphStep` has returned. It therefore becomes an earlier item on the next
   iteration.
-- `ItemTruncate#Insert` appends its `item` parameter. This call is reached
+- `MatchTruncate#Insert` appends its `match` parameter. This call is reached
   with `match` as that parameter; `match` came from the `AllIntersections`
   result and is already an entry of `EverInserted`. Appending this same older
   object, including a duplicate reference, preserves the invariant.
@@ -81,34 +82,62 @@ allocated current item. The fresh-object premise therefore gives
 `predecessor != item`, even if that predecessor was itself not inserted into
 the tree.
 
-## Lemma 4: the current item's `out` remains empty in `GraphStep`
+## Lemma 4: each twin chain has a uniform base price
+
+Initially each item has no twin, so each twin chain contains only its root and
+has a uniform `Price.Base`.
+
+The only `Item.Join` call sites are `GraphStep#JoinSameInterval` and
+`MatchTruncate#JoinSameInterval`:
+
+- At `GraphStep#JoinSameInterval`, the query alias returns `match` only when
+  `match.Price.Base <= item.Price.Base`. On this `else` branch,
+  `item.Price.Base <= match.Price.Base`; therefore both bases are equal.
+- At `MatchTruncate#JoinSameInterval`, `Find` returns `twin` only when
+  `twin.Price.Base == match.Price.Base`, as specified by its alias. The call
+  is `twin.Join(match)`, so the joined bases are equal. `MatchTruncate`
+  changes only bounds before this call, not bases.
+
+By induction, every twin link joins items with the same base. The `Join`
+splice can extend or share a chain, but cannot create a path between items
+with different bases; consequently every item reached by following `twin`
+from a match has that match's base.
+
+At `GraphStep#MatchLinkTwins`, the loop is entered only on the branch
+`item.Price.Base > match.Price.Base`. The uniform-base invariant therefore
+gives `ego.Price.Base == match.Price.Base < item.Price.Base` for every
+yielded `ego`, so `ego != item`. This also accounts for a prior same-price
+match in the same `GraphStep`: it can join the current item only to a chain
+whose base is the current item's base, not to the lower-base chain traversed
+by this loop.
+
+## Lemma 5: the current item's `out` remains empty in `GraphStep`
 
 `GraphWalk#AddItem` uses the constructor postcondition and `NewVector` alias
 to establish an empty `out` vector for the current item.
 
-Both `Item.Link` call sites use the current item as `to`. The annotated
+All `Item.Link` call sites use the current item as `to`. The annotated
 `Item.Link` effects append to `from.out` and `to.in`; neither changes
-`to.out`. The newly added `Join` call effects set `twin` references only.
-`ItemTruncate`, including its tree delete, price-bound update, `Find`,
-optional join, and tree insert, does not mutate any `Item.out` vector.
-`GraphStep` itself adds no other `out`-vector mutation. Therefore the
-current item's `out` remains empty throughout its `GraphStep`.
+`to.out`. `Join` changes only twin references. `MatchTruncate`, including its
+tree delete, `Find`, price-bound updates, optional join, and tree insert,
+does not mutate any `Item.out` vector. `GraphStep` itself adds no other
+`out`-vector mutation. Therefore the current item's `out` remains empty
+throughout its `GraphStep`.
 
 ## Call-site obligations and conclusion
 
-- At `GraphStep#MatchLink`, Lemma 2 gives `match != item`; Lemma 4 gives
+- At `GraphStep#MatchLink`, Lemma 4 gives `ego != item`; Lemma 5 gives
   `item.out.Empty()`.
 - At `GraphStep#GraphBranchSamePrice`, Lemma 3 gives
-  `predecessor != item`; Lemma 4 gives `item.out.Empty()`.
+  `predecessor != item`; Lemma 5 gives `item.out.Empty()`.
 
-Therefore both `Item.Link` call sites satisfy the annotated precondition.
+Therefore all `Item.Link` call sites satisfy the annotated precondition.
 
 ## Scope and dependencies
 
-This proof uses the current `AllIntersections` alias's provenance property
-(results are selected only from `EverInserted`), the `AllIn` vector
-iteration, the `Item.Link` vector summaries, and the fresh-object premise.
-It accounts for conditional `GraphWalk#InsertItem`, tree-history append from
-`ItemTruncate#Insert`, and `Item.Join`. It does not depend on either
-`dag-acyclic.md` or `fresh-item-valid.md`; it is the prerequisite proof for
-those results.
+This proof uses the current `AllIntersections` and `Find` aliases, the
+`AllIn` vector iteration, the `Item.Link` vector summaries, and the
+fresh-object premise. It accounts for conditional `GraphWalk#InsertItem`,
+tree-history append from `MatchTruncate#Insert`, `Item.Join`, and the
+twin-chain `Item.Link` loop. It does not depend on either `dag-acyclic.md` or
+`fresh-item-valid.md`; it is the prerequisite proof for those results.

@@ -24,7 +24,9 @@ import (
 
 /* @+interval.SearchTree: data-model EverInserted []*Item */
 /* @+interval.SearchTree.AllIntersections(a int, b int):
- * alias func (tree *interval.SearchTree) AllIntersections(a int, b int) ([]*Item, bool) { m := make([]*Item, 0); for _, i := range tree.EverInserted { if i.Price.Base <= b && i.Price.Bound >= a { m = append(m, i) } } return m, len(m) > 0 }
+ * alias func (tree *interval.SearchTree) AllIntersections(a, b int) ([]*Item, bool) { m := make([]*Item, 0); for _, i := range tree.EverInserted { if i.Price.Base <= b && i.Price.Bound >= a { m = append(m, i) } } return m, len(m) > 0 }
+ * @+interval.SearchTree.Find(a int, b int):
+ * alias func (tree *interval.SearchTree) Find(a, b int) (*Item, bool) { for _, i := range * tree.EverInserted { if i.Price.Base == a && i.Price.Bound == b { return i, true } } return nil, false }
  */
 
 type PriceSpan struct {
@@ -83,7 +85,10 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 	}
 }
 
-/* @-Item#Join() */
+/* @-Item#Join()
+ * (?)pre-condition: func () bool { if twin.twin != nil { return false } for ego := item.twin; ego != nil; ego = ego.twin { if twin == ego { return false } } return true }()
+ * (?)post-condition: func () bool { for ego := item.twin; ego != nil; ego = ego.twin { if twin == ego { return false } } return true }()
+ */
 func (item *Item) Join(twin *Item) {
 	/* @-Item#Join#CheckTwin: predicate */
 	if item.twin != nil {
@@ -147,9 +152,27 @@ func (set *PriceSpanSet) String() string {
 	return strings.Join(lines, "\n")
 }
 
+/* @^PriceBounds:
+   func() bool {
+     for _, i := range input {
+       if i.Price <= 0 || i.Price >= 10000 {
+         return false
+       }
+     }; return true
+   }()
+*/
+
+/* @^InputSizeBounds:
+   func() bool {
+     (len(input) < math.MaxInt32) &&
+     (set.ItemIndex.Load() < (math.MaxInt32 - int32(len(input)))) &&
+     (set.ItemIndex.Load() >= int32(0))
+   }()
+*/
+
 /* @-PriceSpanSet.GraphWalk()
- * (?)pre-condition: func() bool { for _, i := range input { if i.Price <= 0 || i.Price >= 10000 { return false } }; return true }()
- * (?)pre-condition: (len(input) < math.MaxInt32) && (set.ItemIndex.Load() < (math.MaxInt32 - int32(len(input)))) && (set.ItemIndex.Load() >= int32(0))
+ * (?)pre-condition: PriceBounds
+ * (?)pre-condition: InputSizeBounds
  */
 func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate */
@@ -185,11 +208,15 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 	if matched {
 	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate */
 		for _, match := range matches {
+	    /* @-PriceSpanSet.GraphStep#FauxMatch: predicate */
+      if match.Price.Bound == item.Price.Base {
+        continue
+      }
 			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
 			if item.Price.Base > match.Price.Base {
 				e := error(nil)
 				/* @-PriceSpanSet.GraphStep#MatchTruncate: call */
-				insert, e = set.ItemTruncate(match, item.Price.Base)
+				insert, e = set.MatchTruncate(match, item.Price.Base)
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
 					/* @-PriceSpanSet.GraphStep#MatchReplaceError: panic */
@@ -236,29 +263,28 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 	return insert;
 }
 
-/* @-PriceSpanSet.ItemTruncate() */
-func (set *PriceSpanSet) ItemTruncate(item *Item, at int) (bool, error) {
-	/* @-PriceSpanSet.ItemTruncate#Delete */
-	set.tree.Delete(item.Price.Base, item.Price.Bound) // twin: plus truncate all twins
-  /* @-PriceSpanSet.ItemTruncate#TruncateTwins: loophead, predicate */
-  for ego := item; ego != nil; ego = ego.twin {
-    /* @-PriceSpanSet.ItemTruncate#Truncate */
+/* @-PriceSpanSet.MatchTruncate() */
+func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
+	/* @-PriceSpanSet.MatchTruncate#Delete */
+	set.tree.Delete(match.Price.Base, match.Price.Bound)
+  /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
+	twin, twinned := set.tree.Find(match.Price.Base, at)
+  /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate */
+  for ego := match; ego != nil; ego = ego.twin {
+    /* @-PriceSpanSet.MatchTruncate#Truncate */
     ego.Price.Bound = at
   }
-
-	/* @-PriceSpanSet.ItemTruncate#FindSameInterval */
-	twin, twinned := set.tree.Find(item.Price.Base, item.Price.Bound)
-	/* @-PriceSpanSet.ItemTruncate#CheckSameInterval: predicate */
+	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
 	if twinned {
-	  /* @-PriceSpanSet.ItemTruncate#JoinSameInterval */
-	  twin.Join(item)
-	  /* @-PriceSpanSet.ItemTruncate#ElideSameInterval */
+    /* @-PriceSpanSet.MatchTruncate#JoinSameInterval: call */
+	  twin.Join(match)
+	  /* @-PriceSpanSet.MatchTruncate#ElideSameInterval */
     return false, nil
   } else {
-		/* @-PriceSpanSet.ItemTruncate#Insert: alias set.tree.EverInserted = append(set.tree.EverInserted, item)
-		 * (?)pre-condition: item.Price.Bound > item.Price.Base
+		/* @-PriceSpanSet.MatchTruncate#Insert: alias set.tree.EverInserted = append(set.tree.EverInserted, match)
+		 * (?)pre-condition: match.Price.Bound > match.Price.Base
 		 */
-		return true, set.tree.Insert(item.Price.Base, item.Price.Bound, item)
+		return true, set.tree.Insert(match.Price.Base, match.Price.Bound, match)
 	}
 }
 
