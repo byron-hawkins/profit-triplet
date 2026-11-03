@@ -57,6 +57,7 @@ type Item struct {
 /* Note: unsafe for concurrent execution */
 type PriceSpanSet struct {
   ItemIndex atomic.Int32
+  roots *vector.Vector[*Item]   /* for proof purposes only, can be omitted for release build */
   tree *interval.SearchTree[*Item,int]
 }
 
@@ -64,7 +65,7 @@ func compare (a, b int) int { return a - b }
 
 /* @-NewPriceSpanSet(): alias func NewPriceSpanSet() (PriceSpanSet) { return PriceSpanSet{ tree { make([]*Item, 0) } } } */
 func NewPriceSpanSet() (PriceSpanSet) {
-	return PriceSpanSet { tree: interval.NewSearchTree[*Item,int](compare) }
+  return PriceSpanSet { roots: vector.NewVector[*Item](), tree: interval.NewSearchTree[*Item,int](compare) }
 }
 
 /* @-Item#constructor:
@@ -194,27 +195,43 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 					/* @-PriceSpanSet.GraphStep#MatchReplaceError: panic */
 					panic(e)
 				}
-				/* @-PriceSpanSet.GraphStep#MatchLink: call */
-				match.Link(item)
+        /* @-PriceSpanSet.GraphStep#MatchLinkTwins: loophead, predicate */
+				for ego := match; ego != nil; ego = ego.twin {
+					/* @-PriceSpanSet.GraphStep#MatchLink: call */
+					ego.Link(item)
+				}
 			} else {
 				/* @-PriceSpanSet.GraphStep#CheckSameInterval: predicate */
-				if item.Price.Bound == match.Price.Bound {
+        if item.Price.Bound == match.Price.Bound {
 					/* @-PriceSpanSet.GraphStep#JoinSameInterval: call */
 					match.Join(item)
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
 					insert = false
 				}
-				/* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call */
-				for _, predecessor := range match.AllIn {
-					/* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
-					if predecessor.out.Back() == match {
-						/* @-PriceSpanSet.GraphBranchSamePrice: call */
-						predecessor.Link(item)
-					} /* else a path exists over an intermediate item */
-				}
+        /* @-PriceSpanSet.GraphForkSamePriceCheck: predicate, call */
+        if match.in.Empty() {
+          /* @-PriceSpanSet.GraphForkSamePriceRoot: call
+           * (?)pre-condition: slices.Contains(set.roots.elements, match)
+           */
+          set.roots.PushBack(item)
+        } else {
+          /* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call */
+          for _, predecessor := range match.AllIn {
+            /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate
+             * alias predecessor.out.elements[len(predecessor.out.elements)-1] == match
+             */
+            if predecessor.out.Back() == match {
+              /* @-PriceSpanSet.GraphBranchSamePrice: call */
+              predecessor.Link(item)
+            } /* else a path exists over an intermediate item */
+          }
+        }
 			}
 		}
-	}
+	} else {
+	  /* @-PriceSpanSet.GraphStep#Root */
+    set.roots.PushBack(item)
+  }
 	/* @-PriceSpanSet.GraphStep#return */
 	return insert;
 }
@@ -222,9 +239,12 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 /* @-PriceSpanSet.ItemTruncate() */
 func (set *PriceSpanSet) ItemTruncate(item *Item, at int) (bool, error) {
 	/* @-PriceSpanSet.ItemTruncate#Delete */
-	set.tree.Delete(item.Price.Base, item.Price.Bound)
-	/* @-PriceSpanSet.ItemTruncate#Truncate */
-	item.Price.Bound = at
+	set.tree.Delete(item.Price.Base, item.Price.Bound) // twin: plus truncate all twins
+  /* @-PriceSpanSet.ItemTruncate#TruncateTwins: loophead, predicate */
+  for ego := item; ego != nil; ego = ego.twin {
+    /* @-PriceSpanSet.ItemTruncate#Truncate */
+    ego.Price.Bound = at
+  }
 
 	/* @-PriceSpanSet.ItemTruncate#FindSameInterval */
 	twin, twinned := set.tree.Find(item.Price.Base, item.Price.Bound)

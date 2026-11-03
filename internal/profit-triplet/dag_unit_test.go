@@ -111,7 +111,9 @@ func testGraphIsAcyclic(test *testing.T, input []util.Input) {
 
 	nodes := make([]*Item, 0, set.tree.Size())
 	set.tree.InOrderTraverse(func(_, _ int, item *Item) error {
-		nodes = append(nodes, item)
+    for ego := item; ego != nil; ego = ego.twin {
+		  nodes = append(nodes, ego)
+    }
 		return nil
 	})
 	if len(nodes) != len(input) {
