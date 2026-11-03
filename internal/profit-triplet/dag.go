@@ -23,17 +23,7 @@ import (
 
 /* @+interval.SearchTree: data-model EverInserted []*Item */
 /* @+interval.SearchTree.AllIntersections(a int, b int):
- * alias func (tree *interval.SearchTree) AllIntersections(a int, b int) { slice := tree.EverInserted[%i, %i + %count]; return slice, %matched }
- * %values[0]:
- *   %i int: %i >= 0 && %i < (len(tree.EverInserted) - %count)
- *   %count int: count > 0 && count <= len(tree.EverInserted)
- *   %matched bool: matched == true
- * (?)pre-condition: len(tree.EverInserted) > 0
- * %values[1]:
- *   %i int: (len(tree.EverInserted) == 0 && %i == 0) || (%i >= 0 && %i < len(tree.EverInserted))
- *   %count int: count == 0
- *   %matched bool: matched == false
- * (?)post-condition: func() bool { for _, i := range slice { if i.Price.Base > a { return false } }; return true }()
+ * alias func (tree *interval.SearchTree) AllIntersections(a int, b int) ([]*Item, bool) { m := make([]*Item, 0); for _, i := range tree.EverInserted { if i.Price.Base <= b && i.Price.Bound >= a { m = append(m, i) } } return m, len(m) > 0 }
  */
 
 type PriceSpan struct {
@@ -60,6 +50,7 @@ type Item struct {
 
 	in  *vector.Vector[*Item]
 	out *vector.Vector[*Item]
+	twin *Item
 }
 
 type PriceSpanSet struct {
@@ -85,7 +76,19 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 		[3]int{ margin, 0, 0 },
 		vector.NewVector[*Item](),
 		vector.NewVector[*Item](),
+		nil,
 	}
+}
+
+/* @-Item#Join() */
+func (item *Item) Join(twin *Item) {
+	/* @-Item#Join#CheckTwin: predicate */
+	if item.twin != nil {
+    /* @-Item#Join#SpliceTwin */
+		twin.twin = item.twin
+	}
+  /* @-Item#Join#JoinTwin */
+	item.twin = twin
 }
 
 /* @-AllIn() */
@@ -133,10 +136,9 @@ func (from *Item) Link(to *Item) {
 }
 
 func (set *PriceSpanSet) String() string {
-	lines := make([]string, set.tree.Size() + 1)
-	lines[0] = fmt.Sprintf("• PriceSpanSet:")
+	lines := []string { fmt.Sprintf("• PriceSpanSet:") }
 	set.tree.InOrderTraverse(func (base int, bound int, item *Item) error {
-		lines[item.index] = fmt.Sprintf("• %v", item)
+		lines = append(lines, fmt.Sprintf("• %v", item))
   	return nil
   })
 	return strings.Join(lines, "\n")
@@ -151,17 +153,17 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 		/* @-GraphWalk#AddItem: call */
 		item := set.NewItem(i.Margin, i.Price)
 
-		/* @-PriceSpanSet.GraphWalk#Step: call */
-		set.GraphStep(&item)
-
-		/* @-PriceSpanSet.GraphWalk#InsertItem: alias set.tree.EverInserted = append(set.tree.EverInserted, &item)
-     * (?)pre-condition: item.Price.Base < item.Price.Bound
-		 */
-		e := set.tree.Insert(item.Price.Base, item.Price.Bound, &item)
-		/* @-PriceSpanSet.GraphWalk#InsertItemErrorCheck: predicate */
-		if e != nil {
-			/* @-PriceSpanSet.GraphWalk#InsertItemError: panic */
-			panic(e)
+		/* @-PriceSpanSet.GraphWalk#Step: predicate, call */
+		if set.GraphStep(&item) {
+			/* @-PriceSpanSet.GraphWalk#InsertItem: alias set.tree.EverInserted = append(set.tree.EverInserted, &item)
+			 * (?)pre-condition: item.Price.Base < item.Price.Bound
+			 */
+			e := set.tree.Insert(item.Price.Base, item.Price.Bound, &item)
+			/* @-PriceSpanSet.GraphWalk#InsertItemErrorCheck: predicate */
+			if e != nil {
+				/* @-PriceSpanSet.GraphWalk#InsertItemError: panic */
+				panic(e)
+			}
 		}
 	}
 
@@ -171,7 +173,8 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 /* @-PriceSpanSet.GraphStep()
  * (?)pre-condition: !slices.Contains(set.tree.EverInserted, item)
  */
-func (set *PriceSpanSet) GraphStep(item *Item) {
+func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
+	insert := true
 	/* @-PriceSpanSet.GraphStep#TreeQuery: call */
 	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base)
 	/* @-PriceSpanSet.GraphStep#TreeQueryMatchCheck: predicate */
@@ -179,9 +182,10 @@ func (set *PriceSpanSet) GraphStep(item *Item) {
 	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate */
 		for _, match := range matches {
 			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
-			if item.Price.Base < match.Price.Bound {
+			if item.Price.Base > match.Price.Base {
+				e := error(nil)
 				/* @-PriceSpanSet.GraphStep#MatchTruncate: call */
-				e := set.ItemTruncate(match, item.Price.Base)
+				insert, e = set.ItemTruncate(match, item.Price.Base)
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
 					/* @-PriceSpanSet.GraphStep#MatchReplaceError: panic */
@@ -189,25 +193,48 @@ func (set *PriceSpanSet) GraphStep(item *Item) {
 				}
 				/* @-PriceSpanSet.GraphStep#MatchLink: call */
 				match.Link(item)
-			} else {   // better here to just merge the better margin into the match and skip this input?
+			} else {
+				/* @-PriceSpanSet.GraphStep#CheckSameInterval: predicate */
+				if item.Price.Bound == match.Price.Bound {
+					/* @-PriceSpanSet.GraphStep#JoinSameInterval: call */
+					match.Join(item)
+					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
+					insert = false
+				}
 				/* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call */
 				for _, predecessor := range match.AllIn {
-					/* @-PriceSpanSet.GraphBranchSamePrice: call */
-					predecessor.Link(item)
+					/* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
+					if predecessor.out.Back() == match {
+						/* @-PriceSpanSet.GraphBranchSamePrice: call */
+						predecessor.Link(item)
+					} /* else a path exists over an intermediate item */
 				}
 			}
 		}
 	}
+	/* @-PriceSpanSet.GraphStep#return */
+	return insert;
 }
 
 /* @-PriceSpanSet.ItemTruncate() */
-func (set *PriceSpanSet) ItemTruncate(item *Item, at int) error {
+func (set *PriceSpanSet) ItemTruncate(item *Item, at int) (bool, error) {
 	/* @-PriceSpanSet.ItemTruncate#Delete */
 	set.tree.Delete(item.Price.Base, item.Price.Bound)
 	/* @-PriceSpanSet.ItemTruncate#Truncate */
 	item.Price.Bound = at
-	/* @-PriceSpanSet.ItemTruncate#Insert: alias set.tree.EverInserted = append(set.tree.EverInserted, item)
-	 * (?)pre-condition: item.Price.Bound > item.Price.Base
-	 */
-  return set.tree.Insert(item.Price.Base, item.Price.Bound, item)  // bug: collapsed bounds
+
+	/* @-PriceSpanSet.ItemTruncate#FindSameInterval */
+	twin, twinned := set.tree.Find(item.Price.Base, item.Price.Bound)
+	/* @-PriceSpanSet.ItemTruncate#CheckSameInterval: predicate */
+	if twinned {
+	  /* @-PriceSpanSet.ItemTruncate#JoinSameInterval */
+	  twin.Join(item)
+	  /* @-PriceSpanSet.ItemTruncate#ElideSameInterval */
+    return false, nil
+  } else {
+		/* @-PriceSpanSet.ItemTruncate#Insert: alias set.tree.EverInserted = append(set.tree.EverInserted, item)
+		 * (?)pre-condition: item.Price.Bound > item.Price.Base
+		 */
+		return true, set.tree.Insert(item.Price.Base, item.Price.Bound, item)
+	}
 }
