@@ -1,36 +1,25 @@
 # Proof: `GraphWalk#InsertItem` precondition holds
 
-## Summary
+## Goal and result
 
-The precondition on `PriceSpanSet.GraphWalk#InsertItem` is:
+For every execution of `GraphWalk` that reaches
+`PriceSpanSet.GraphWalk#InsertItem`, prove:
 
 ```go
 item.Price.Base < item.Price.Bound
 ```
 
-The `GraphWalk` precondition requires every input price to be in `1..9999`.
-`NewItem` initializes the current item's price to
-`PriceSpan{Base: i.Price, Bound: math.MaxInt32}`. During `GraphStep`, the
-`MatchTruncate` alias changes `match.Price.Bound`, not the current item's
-price. The established freshness fact `match != item` ensures those are
-distinct objects. No other annotated operation on this path changes the
-current item's price. Therefore, whenever execution reaches `InsertItem`,
-its precondition holds.
+**Outcome:** PROVED under the `GraphWalk` input precondition, the current
+constructor and call annotations, and the fresh-object fact established in
+[`linked-item-fresh.md`](./linked-item-fresh.md).
 
-**Outcome:** PROVED for the `GraphWalk#InsertItem` price inequality on paths
-where `GraphStep` returns normally, assuming the established freshness fact
-that every query match differs from the current item and the annotation
-semantics in [`proof-generation.md`](../meta/proof-generation.md).
+The source now calls `GraphStep` as a predicate and executes the insertion
+only when it returns true. This proof covers every such insertion. It also
+checks the precondition of the reachable `ItemTruncate#Insert` operation.
 
-This does not prove that every call made inside `GraphStep` satisfies its own
-preconditions. In particular, see
-[`invalid-item-rescope.md`](../bug/invalid-item-rescope.md) for a counterexample
-to `ItemTruncate#Insert`'s precondition. Thus this result is not a proof that
-all of `GraphWalk` is free of invalid calls.
+## Input range
 
-## Input-range invariant
-
-The `GraphWalk` precondition is the boolean expression:
+The `GraphWalk` precondition is:
 
 ```go
 func() bool {
@@ -43,56 +32,127 @@ func() bool {
 }()
 ```
 
-At the start of each iteration over `input`, use this loop invariant:
+Induct over the function literal's loop. The invariant is that each element
+in the processed prefix satisfies `0 < i.Price < 10000`. It holds for the
+empty prefix; an out-of-range element returns false, and an in-range element
+preserves the invariant. Thus when the precondition is true, each input price
+is in `[1, 9999]`. An empty input does not reach an insertion.
 
-> Every input element in the already-processed prefix has a price `p` with
-> `0 < p < 10000`.
+## `GraphStep` query facts
 
-The invariant holds for the empty prefix. An iteration returns `false` if
-the current element violates the range; otherwise it preserves the invariant
-for the longer prefix. Thus, if the precondition evaluates to `true`, every
-input element has `1 <= i.Price <= 9999`. For empty input, `GraphWalk` has no
-iteration and never reaches `InsertItem`.
+The current `AllIntersections` alias builds a result slice by iterating over
+`tree.EverInserted` and appending only items satisfying:
 
-## Annotated-line value-range execution
+```go
+i.Price.Base <= b && i.Price.Bound >= a
+```
 
-Consider any iteration that reaches `GraphWalk#InsertItem`. The trace follows
-the annotated source lines and applies the explicit `MatchTruncate` alias.
+For `GraphStep`, both query arguments are the current item's base, so
+`a == b == item.Price.Base`. An invariant over the summary's loop is that
+every element appended to `m` came from the history and satisfies both
+filters. Therefore for each returned `match`:
 
-| Annotated line | Path condition and value ranges |
+```text
+match.Price.Base <= item.Price.Base
+match.Price.Bound >= item.Price.Base
+```
+
+The freshness result establishes `match != item`.
+
+## Reachable truncation call
+
+At `GraphStep#MatchBoundCheck`, truncation is called only on the branch:
+
+```go
+item.Price.Base > match.Price.Base
+```
+
+The call is `ItemTruncate(match, item.Price.Base)`. In the callee, rename its
+`item` parameter to `match` to avoid confusing it with the current
+`GraphStep` item. At entry:
+
+```text
+truncateItem.Price.Base = match.Price.Base
+at = callerItem.Price.Base
+at > truncateItem.Price.Base
+```
+
+The `ItemTruncate#Delete` call is not labelled `call` and is a no-op under
+the proof rules. `ItemTruncate#Truncate` then assigns:
+
+```go
+truncateItem.Price.Bound = at
+```
+
+Thus `truncateItem.Price.Bound > truncateItem.Price.Base` follows from the
+`GraphStep#MatchBoundCheck` branch guard. At `ItemTruncate#FindSameInterval`,
+the `Find` result may be either `twinned` or not:
+
+- If `twinned` is true, `ItemTruncate#JoinSameInterval` changes only twin
+  links and the function returns `(false, nil)`; the annotated insert and its
+  precondition are not reached.
+- If `twinned` is false, execution reaches `ItemTruncate#Insert`, where the
+  required strict inequality has just been established.
+
+Therefore every path that reaches `ItemTruncate#Insert` satisfies its
+precondition. If `ItemTruncate` returns an error, `GraphStep` may panic and
+does not return normally; the panic path does not reach
+`GraphWalk#InsertItem`.
+
+## Current item is unchanged by `GraphStep`
+
+For a current iteration, `Item#constructor` gives:
+
+```text
+current.Price.Base = input.Price
+current.Price.Bound = math.MaxInt32
+```
+
+The input range therefore establishes:
+
+```text
+1 <= current.Price.Base <= 9999 < math.MaxInt32
+```
+
+`GraphStep#MatchTruncate` passes a query match to `ItemTruncate`; freshness
+gives `match != current`. The truncate assignment therefore changes the
+matched object's bound, not the current object's price. `Item.Join` changes
+only twin fields. `Item.Link` changes only `in` and `out` vectors. None of
+these operations changes `current.Price`.
+
+`GraphStep` returns either true or false. Its false path skips
+`GraphWalk#InsertItem`; on its true path, the current item's price still has
+the constructor values above. Therefore at every reachable
+`GraphWalk#InsertItem`:
+
+```text
+current.Price.Base <= 9999 < math.MaxInt32 = current.Price.Bound
+```
+
+which proves the required strict inequality.
+
+## Annotated-line trace
+
+| Annotated line | Established values or condition |
 |---|---|
-| `PriceSpanSet.GraphWalk()` precondition | The boolean expression evaluates to `true`; therefore every `i` in `input` satisfies `1 <= i.Price <= 9999`. |
-| `PriceSpanSet.GraphWalk#EachInput` | For the selected element, `1 <= i.Price <= 9999`. |
-| `GraphWalk#AddItem` → `Item#constructor` | The constructor postcondition gives `item.Price.Base = i.Price` and `item.Price.Bound = math.MaxInt32`. Hence `1 <= item.Price.Base <= 9999` and `item.Price.Bound = 2147483647`. |
-| `PriceSpanSet.GraphWalk#Step` → `GraphStep` precondition | `GraphStep`'s freshness precondition holds for the newly created item. The price range remains unchanged. |
-| `PriceSpanSet.GraphStep#TreeQuery` | The query returns the modeled history slice and match flag. It does not change `item.Price`. |
-| `PriceSpanSet.GraphStep#TreeQueryMatchCheck` and `#EachMatch` | On a path with a match, the established freshness fact gives `match != item`. If there are no matches, no truncation occurs. |
-| `PriceSpanSet.GraphStep#MatchBoundCheck` | The true branch is guarded by `item.Price.Base < match.Price.Bound`; the false branch does not execute `MatchTruncate`. Neither branch itself changes `item.Price`. |
-| `PriceSpanSet.GraphStep#MatchTruncate` | Apply the annotation alias exactly: `match.Price.Bound = item.Price.Base`. Its left-hand side is a field of `match`. Since `match != item`, it does not change `item.Price.Base` or `item.Price.Bound`. The current item's values remain `Base = i.Price` and `Bound = math.MaxInt32`. |
-| `PriceSpanSet.GraphStep#MatchReplaceErrorCheck` | If the error branch panics, the execution does not reach `InsertItem`. On a continuing path, the current item's price remains unchanged. |
-| `PriceSpanSet.GraphStep#MatchLink` / `#GraphBranchSamePrice` | `Item.Link` changes the annotated `in` and `out` vectors, not the current item's price. The current item's price remains `Base in [1,9999]`, `Bound = 2147483647`. |
-| `PriceSpanSet.GraphWalk#InsertItem` | `item.Price.Base <= 9999 < 2147483647 = item.Price.Bound`; therefore `item.Price.Base < item.Price.Bound`. |
+| `GraphWalk()` precondition | Every input price is in `[1,9999]`. |
+| `GraphWalk#EachInput` | For the selected input, `1 <= input.Price <= 9999`. |
+| `GraphWalk#AddItem` / `Item#constructor` | `current.Base = input.Price`; `current.Bound = math.MaxInt32`. |
+| `GraphWalk#Step` / `GraphStep` | Call precondition holds by freshness; `current.Price` has not changed. |
+| `GraphStep#TreeQuery` | Each returned match is a history object satisfying `match.Base <= current.Base <= match.Bound`. |
+| `GraphStep#MatchBoundCheck` true branch | `current.Base > match.Base`; hence the truncate call has `at > truncateItem.Base`. |
+| `ItemTruncate#Truncate` | Assign `truncateItem.Bound = at`; thus `truncateItem.Bound > truncateItem.Base`. |
+| `ItemTruncate#FindSameInterval` / `#CheckSameInterval` | On `twinned`, return without insertion; otherwise reach `#Insert` with the strict inequality established. |
+| `GraphStep#return` | Boolean return controls whether the current item is inserted; it does not change `current.Price`. |
+| `GraphWalk#InsertItem` | Reached only if `GraphStep` returns true; `current.Base <= 9999 < math.MaxInt32 = current.Bound`. |
 
-The same range argument applies whether `GraphStep` has zero or multiple
-matches, provided `GraphStep` returns normally. A path that panics inside
-`GraphStep` does not reach the insertion obligation. A path where an internal
-call precondition fails is not a valid normally returning proof path; that
-call-site obligation must be handled separately.
+## Dependencies and limits
 
-## Dependencies and scope
-
-- The input loop in the `GraphWalk` precondition has the invariant stated
-  above; the proof uses the true outcome of that boolean expression.
-- `Item#constructor` has the postcondition currently specified in `dag.go`.
-- The established freshness fact applies to the current annotations and
-  guarantees `match != item` at `MatchTruncate`.
-- The `MatchTruncate` alias is applied as a state update to
-  `match.Price.Bound`; it is not treated as a no-op.
-- This proof does not discharge `ItemTruncate#Insert`'s precondition; that
-  separate obligation is refuted in
-  [`invalid-item-rescope.md`](../bug/invalid-item-rescope.md).
-- This proves the annotated precondition for executions satisfying the
-  `GraphWalk` precondition and reaching its insertion point after normal
-  return from `GraphStep`. It does not prove that arbitrary callers satisfy
-  that precondition, nor does it prove refinement of the external tree
-  implementation.
+- Depends on [`linked-item-fresh.md`](./linked-item-fresh.md) for match
+  provenance and `match != current`.
+- Uses the current `AllIntersections` alias filter and the current
+  `ItemTruncate` call/assignment/branch annotations.
+- Treats unmarked calls as no-ops, as required by
+  [`proof-generation.md`](../meta/proof-generation.md).
+- Does not prove callers satisfy `GraphWalk`'s precondition, panic-freedom, or
+  refinement of the external tree implementation.

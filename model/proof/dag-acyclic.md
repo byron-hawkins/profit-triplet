@@ -2,88 +2,83 @@
 
 ## Theorem
 
-Starting from a `PriceSpanSet` created by `NewPriceSpanSet`, every `Item.out`
-graph state reached while executing `GraphWalk` is acyclic, assuming the
-freshness facts in [linked-item-fresh.md](./linked-item-fresh.md) and the
-annotation semantics in [proof-generation.md](./proof-generation.md).
+Starting from a `PriceSpanSet` with no items or edges, every `Item.out` graph
+state reached during `GraphWalk` is acyclic, assuming the link-freshness
+result in [`linked-item-fresh.md`](./linked-item-fresh.md) and the current
+annotation semantics in [`proof-generation.md`](../meta/proof-generation.md).
 
-Here, the graph has an edge `u → v` exactly when `v` occurs in
-`u.out.elements`. The claim covers each individual `out` update, including
-states between the two updates in `Item.Link`, and does not require normal
-completion of `GraphWalk`.
+The graph has an edge `u → v` exactly when `v` occurs in `u.out.elements`.
+The claim covers each individual `out` mutation and does not require
+`GraphWalk` to complete normally.
 
 ## Assumptions and scope
 
-- The set starts with `NewPriceSpanSet`; its modeled history and graph are
-  empty.
-- `GraphWalk` is the graph-building operation under consideration. There is
-  no concurrent mutation and no other code mutates an `Item.out` vector.
-- The freshness proof establishes, at every `Item.Link` call reached from
-  `GraphStep`, that the current item is distinct from the source and has an
-  empty `out` vector. It also establishes the history and predecessor facts
-  used to justify those call-site conditions.
-- Annotated calls and substitutions have the meanings specified in
-  `proof-generation.md`. In particular, the `PushBack` calls in `Item.Link`
-  append their arguments, and an unannotated call is a no-op.
+- The initial modeled graph is empty.
+- Item creation in each input iteration yields a fresh identity, as in
+  [`linked-item-fresh.md`](./linked-item-fresh.md).
+- There is no concurrent or external mutation of `Item.out`.
+- The current annotations are the complete graph-mutation model. In
+  particular, `Item.Link` appends to `from.out`; `Join` mutates only `twin`;
+  `ItemTruncate` mutates price/tree state; and `ItemTruncate`'s history alias
+  does not alter graph edges.
+- A `GraphStep` result of false can skip `GraphWalk#InsertItem`; this may
+  leave a graph node absent from tree history, but does not remove or add any
+  edge by itself.
 
-This is a property of the annotated abstraction. It does not prove that the
-concrete interval-tree or vector implementations refine that abstraction.
-Nor does it claim that `GraphWalk` completes without panic.
+This is an annotated-abstraction proof, not a refinement proof of external
+collections. It does not prove panic-freedom or that the interval-query model
+is complete.
 
 ## Edge-addition lemma
 
-Let `G` be an acyclic directed graph, and let `t` be a vertex whose outgoing
-edge set is empty. If `s != t`, adding the edge `s → t` preserves acyclicity.
+Let `G` be an acyclic directed graph. Let `t` have no outgoing edges, and
+let `s != t`. Adding the edge `s → t` preserves acyclicity.
 
-Any newly created cycle would have to contain the new edge. Removing that
-edge from such a cycle would leave a directed path from `t` back to `s`.
-There is no such path: since `t` has no outgoing edges, no nonempty path can
-start at `t`; and since `s != t`, the zero-length path at `t` does not end at
-`s`. Thus no new cycle is created.
+If a new cycle existed, it would contain the new edge. Removing that edge
+would leave a directed path from `t` back to `s`. No nonempty path can start
+at `t` because `t.out` is empty; a zero-length path ends at `t`, not at
+`s != t`. Hence there is no such cycle.
 
-Both conditions matter. In particular, if `s == t`, the new edge is itself a
-cycle even when `t.out` was empty.
+## Induction over `out` mutations
 
-## Induction over graph updates
+Induct on the number of `Item.out` append operations reached.
 
-Use the number of `Item.out` append operations as the induction measure.
+### Base
 
-### Base case
+The initial graph has no edges and is acyclic.
 
-`NewPriceSpanSet` initializes an empty item history. There have been no
-`Item.Link` calls and therefore no `out` edges. The graph is acyclic.
+### Step
 
-### Inductive step
+Assume the graph is acyclic immediately before the next `out` append.
+According to the current annotations, the only such append is
+`Item.Link#out`, called from either `GraphStep#MatchLink` or
+`GraphStep#GraphBranchSamePrice`.
 
-Assume the graph is acyclic immediately before the next `Item.out` append.
-The only graph-edge mutations in `GraphStep` are the `Item.Link` calls at
-`GraphStep#MatchLink` and `GraphStep#GraphBranchSamePrice`. The freshness
-proof establishes for each such call:
+The refreshed link-freshness proof establishes at each site that:
 
-1. `to` is the newly created current item;
-2. `to.out` is empty at the call; and
-3. `from != to` (`from` is the match or the yielded predecessor).
+- the destination is the current item, whose `out` vector is empty;
+- the source (`match` or `predecessor`) is a distinct item.
 
-`Item.Link` first appends `to` to `from.out`. Apply the edge-addition lemma
-with `s = from` and `t = to`; acyclicity is preserved after this append.
-The second `PushBack` appends `from` to `to.in`. It does not change any
-`out` vector, so it leaves the `Item.out` graph unchanged and acyclic.
+`Item.Link#out` adds exactly the edge from that source to the current item.
+The edge-addition lemma preserves acyclicity. The following
+`Item.Link#in` update changes no `out` vector and therefore preserves the
+graph state.
 
-The current item remains a valid empty-out target for any later link in the
-same `GraphStep`: each `Item.Link` changes its `in`, not its `out`. Once
-`GraphStep` finishes, the item is inserted into the tree/history before the
-next `GraphWalk` iteration. The next iteration creates a distinct new item,
-and the same argument applies. If execution panics, there is no subsequent
-iteration; any graph prefix reached before the panic is covered by the
-induction.
+The item remains a valid empty-out destination for later links in the same
+`GraphStep`: each link changes its `in`, not its `out`. `JoinSameInterval`
+may be reached either directly in `GraphStep` or from `ItemTruncate`, but
+`Item.Join` changes only `twin` fields. `ItemTruncate`'s price updates,
+tree operations, and return value do not mutate `out`. Whether `GraphStep`
+returns true and causes `GraphWalk#InsertItem`, or returns false and elides
+that insertion, does not affect the already-established graph state.
 
-Therefore every finite prefix of the `out` append sequence is acyclic, which
-proves the theorem.
+Thus every finite prefix of edge additions remains acyclic. The argument
+also covers a prefix that ends in panic.
 
 ## Conclusion and limits
 
-Taking the freshness proof as established, acyclicity of the modeled
-`Item.out` graph follows by induction from the empty initial graph. This
-proves the graph property for `GraphWalk` under the assumptions above; it
-does not establish panic-freedom, correctness of interval queries, or
-acyclicity under arbitrary external mutations of `Item.out`.
+The `Item.out` graph remains acyclic throughout the modeled `GraphWalk`,
+conditional on [`linked-item-fresh.md`](./linked-item-fresh.md). Conditional
+tree insertion, same-interval joining, truncation, and tree-history updates
+do not invalidate the edge induction because none changes an `out` vector
+except the `Item.Link#out` append analyzed above.

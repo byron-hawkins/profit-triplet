@@ -3,6 +3,7 @@ package dag
 import (
   "fmt"
  "strings"
+ "slices"
  "math"
  "sync/atomic"
  "github.com/rishabhofficial/golang-standard-template-library/containers/vector"
@@ -53,6 +54,7 @@ type Item struct {
 	twin *Item
 }
 
+/* Note: unsafe for concurrent execution */
 type PriceSpanSet struct {
   ItemIndex atomic.Int32
   tree *interval.SearchTree[*Item,int]
@@ -146,6 +148,7 @@ func (set *PriceSpanSet) String() string {
 
 /* @-PriceSpanSet.GraphWalk()
  * (?)pre-condition: func() bool { for _, i := range input { if i.Price <= 0 || i.Price >= 10000 { return false } }; return true }()
+ * (?)pre-condition: (len(input) < math.MaxInt32) && (set.ItemIndex.Load() < (math.MaxInt32 - int32(len(input)))) && (set.ItemIndex.Load() >= int32(0))
  */
 func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate */
@@ -237,4 +240,24 @@ func (set *PriceSpanSet) ItemTruncate(item *Item, at int) (bool, error) {
 		 */
 		return true, set.tree.Insert(item.Price.Base, item.Price.Bound, item)
 	}
+}
+
+func Purchasable(items []*Item) (bool) {
+	switch len(items) {
+	case 0:
+		return false
+	case 1:
+		return true
+	}
+
+	indexer := func(a, b *Item) int {
+		return int(a.index - b.index)
+	}
+	slices.SortFunc(items, indexer)
+	for i := range (len(items)-1) {
+		if items[i].Price.Base >= items[i+1].Price.Base {
+			return false
+		}
+	}
+  return true
 }

@@ -2,159 +2,113 @@
 
 ## Claim
 
-For each iteration of `PriceSpanSet.GraphWalk` that reaches
-`PriceSpanSet.GraphWalk#Step`, the call to `GraphStep(&item)` satisfies the
-precondition of `PriceSpanSet.GraphStep()`. During that call:
+At each `Item.Link(from, item)` call reached during `GraphStep`:
 
-1. `item` is absent from `set.tree.EverInserted`.
-2. Every `match` returned by `AllIntersections` differs from `item`.
-3. Every `predecessor` yielded by `match.AllIn` differs from `item`.
-4. `item.out` is empty at each call to `Item.Link`.
+1. `item` is distinct from `from`;
+2. `item.out` is empty.
 
-Consequently, both `GraphStep#MatchLink` and
-`GraphBranchSamePrice#call` satisfy `Item.Link()`'s precondition:
-`to.out.Empty() && from != to`.
+Thus the `Item.Link` precondition `to.out.Empty() && from != to` holds at
+`GraphStep#MatchLink` and `GraphStep#GraphBranchSamePrice`.
 
-This is a proof in the project's annotated abstraction. It does not model the
-concrete implementation of `interval.SearchTree` or `vector.Vector`.
+The proof is for the current annotated abstraction. It does not establish
+refinement of the external vector or interval-tree implementations.
 
-## Scope and premises
+## Premises
 
-- The `PriceSpanSet` is created using the annotated `NewPriceSpanSet`, whose
-  alias initializes the abstract `EverInserted` history to an empty slice.
-- Execution follows `GraphWalk`'s iteration order: `GraphWalk#AddItem`,
-  `GraphWalk#Step`, then `GraphWalk#InsertItem`.
-- Each input price is less than `math.MaxInt32`.
-- Item addresses follow Go pointer identity: the address of the current
-  non-zero-sized local `item` is distinct from pointers to items retained from
-  previous iterations.
-- The abstract summaries in `dag.go` define Vector operations,
-  `AllIntersections`, and tree history. A call marked `call` applies its
-  annotated callee semantics; calls not so marked are no-ops, as specified by
-  `proof-generation.md`.
+- `GraphWalk` starts with a set whose modeled tree history is empty.
+- Each `GraphWalk#AddItem` produces a new object identity, distinct from all
+  item objects retained from earlier iterations. This is the Go pointer
+  identity/fresh-allocation premise for the address of the escaping local
+  `item`.
+- `GraphStep` is called before the current item is appended by
+  `GraphWalk#InsertItem`.
+- Summary aliases and element annotations have the meanings defined by
+  `proof-generation.md`. In particular, unmarked calls are no-ops, while
+  calls marked `call` use their annotated bodies or summaries.
 
-The argument concerns every graph state reached, including a prefix ending
-in panic. It does not require `GraphWalk` to complete normally.
+The input-price range and `GraphWalk#InsertItem` price precondition are not
+needed for the two `Item.Link` call-site obligations established here.
 
-## Lemma 1: the abstract history contains only earlier iteration items
+## Lemma 1: every tree-history entry is an earlier item object
 
-Initially, `EverInserted` is empty by the `NewPriceSpanSet` alias.
+Initially the abstract `EverInserted` history is empty.
 
-`Item#constructor` guarantees `item.Price.Base == i.Price` and
-`item.Price.Bound == math.MaxInt32`. `GraphStep` does not mutate the current
-item's price: `GraphStep#MatchTruncate` has no `call` label and is therefore a
-no-op, and the current item is distinct from each match. Thus, for each input
-price less than `math.MaxInt32`, the `GraphWalk#InsertItem` precondition
-`item.Price.Base < item.Price.Bound` holds.
+Maintain the invariant:
 
-In `GraphWalk`, the history update is attached to
-`GraphWalk#InsertItem`:
+> Every pointer in `EverInserted` points to an item object allocated before
+> the current `GraphWalk` iteration.
 
-```go
-set.tree.EverInserted = append(set.tree.EverInserted, &item)
-```
+There are two annotated operations that append to this history:
 
-This occurs after `GraphWalk#Step`. Thus, at the beginning of each
-`GraphStep(&item)`, the history contains only pointers appended by earlier
-iterations and does not yet contain `&item`.
+- `GraphWalk#InsertItem` appends the current `&item`, but only after
+  `GraphStep` has returned. It therefore becomes an earlier item on the next
+  iteration.
+- `ItemTruncate#Insert` appends its `item` parameter. This call is reached
+  with `match` as that parameter; `match` came from the `AllIntersections`
+  result and is already an entry of `EverInserted`. Appending this same older
+  object, including a duplicate reference, preserves the invariant.
 
-The `GraphStep()` precondition states:
+No other annotated operation appends the current item to the history before
+the current `GraphStep` completes. `GraphStep`'s new boolean result only
+controls whether the later `GraphWalk#InsertItem` is reached. If it returns
+false, the current object is not appended there at all.
 
-```go
-!slices.Contains(set.tree.EverInserted, item)
-```
+## Lemma 2: every match is distinct from the current item
 
-The preceding order and history update establish this condition. The current
-item's address is distinct from retained addresses of prior local items, so it
-cannot alias a prior history entry.
+`GraphStep#TreeQuery` calls the annotated `AllIntersections` summary. Its
+alias initializes `m` as empty and appends only `i` values obtained by
+iterating over `tree.EverInserted`. Therefore every returned match is a
+pointer already present in the history. By Lemma 1, all such pointers refer
+to objects from earlier iterations. By the fresh-object premise, none is the
+current item.
 
-## Lemma 2: query matches differ from the current item
+This reasoning applies whether the query returns an empty slice or one or
+more matches. The overlap filter in the alias narrows the possible matches
+but does not alter their provenance.
 
-`GraphStep#TreeQuery` invokes the annotated
-`interval.SearchTree.AllIntersections` summary. Its alias returns a slice of
-`tree.EverInserted`:
+## Lemma 3: every yielded predecessor is distinct from the current item
 
-```go
-tree.EverInserted[%i, %i + %count]
-```
+`AllIn` iterates over `match.in` and yields the element at each valid vector
+index. Every such reference was added by an earlier `Item.Link` call: that
+call's `from` item was already an existing graph object, and its `to` item
+was the then-current `GraphStep` item. Thus every predecessor is an item
+object allocated before the current iteration.
 
-For every applicable substitution, every element of this slice is therefore
-an element of `EverInserted`. By Lemma 1, `item` is not in that history.
-Consequently, each `match` in the slice is distinct from `item`.
+The new `Item.Join` calls only change `twin` fields and do not add `in` or
+`out` references. The `insert = false` path may leave an item out of tree
+history, but it does not make that object's identity equal to a subsequently
+allocated current item. The fresh-object premise therefore gives
+`predecessor != item`, even if that predecessor was itself not inserted into
+the tree.
 
-For the empty-history case, `%values[1]` permits `%i == 0`, `count == 0`,
-and `matched == false`; the query returns an empty slice, so there is no
-`match` to check. For nonempty history, the applicable query result remains a
-slice of history entries, which is all this freshness argument requires.
+## Lemma 4: the current item's `out` remains empty in `GraphStep`
 
-## Lemma 3: predecessors differ from the current item
+`GraphWalk#AddItem` uses the constructor postcondition and `NewVector` alias
+to establish an empty `out` vector for the current item.
 
-Maintain this graph/history invariant at the start of each `GraphStep`:
+Both `Item.Link` call sites use the current item as `to`. The annotated
+`Item.Link` effects append to `from.out` and `to.in`; neither changes
+`to.out`. The newly added `Join` call effects set `twin` references only.
+`ItemTruncate`, including its tree delete, price-bound update, `Find`,
+optional join, and tree insert, does not mutate any `Item.out` vector.
+`GraphStep` itself adds no other `out`-vector mutation. Therefore the
+current item's `out` remains empty throughout its `GraphStep`.
 
-> Every item reference in any existing `Item.in` or `Item.out` vector refers
-> to an item in `EverInserted`.
+## Call-site obligations and conclusion
 
-It holds initially because the history and graph are empty. During
-`GraphStep`, the only graph updates are the two annotated `Item.Link` calls.
-Each adds the current item to a source's `out` and adds that source to the
-current item's `in`. `GraphWalk#InsertItem` then appends the current item to
-`EverInserted`, restoring the invariant before the next iteration. If an
-execution panics before that append, it has no next iteration to invalidate
-the argument.
+- At `GraphStep#MatchLink`, Lemma 2 gives `match != item`; Lemma 4 gives
+  `item.out.Empty()`.
+- At `GraphStep#GraphBranchSamePrice`, Lemma 3 gives
+  `predecessor != item`; Lemma 4 gives `item.out.Empty()`.
 
-`AllIn`'s annotated body iterates from `item.in.Size()` and passes
-`item.in.At(i)` to its callback. The `Size` and `At` aliases operate over
-the abstract vector's `elements`; hence each yielded predecessor is an
-existing reference in `match.in`. By the invariant, that predecessor is in
-`EverInserted`. By Lemma 1, the current item is not in `EverInserted`, so
-the predecessor differs from `item`.
+Therefore both `Item.Link` call sites satisfy the annotated precondition.
 
-## Lemma 4: `item.out` stays empty during `GraphStep`
+## Scope and dependencies
 
-`GraphWalk#AddItem` obtains the current value from `Item#constructor`. The
-constructor postcondition gives:
-
-```go
-return Item{
-    Price: PriceSpan{ Base: price, Bound: math.MaxInt32 },
-    out: vector.NewVector[*Item](),
-}
-```
-
-The `NewVector` alias constructs the modeled vector with an empty `elements`
-slice, and `Vector.Empty` defines emptiness as `len(v.elements) == 0`.
-Therefore the current item's `out` is empty before `GraphStep`.
-
-In either `Item.Link` call, the precondition requires `to.out.Empty()`.
-Its annotated updates append `to` to `from.out` and `from` to `to.in`;
-neither update changes `to.out`. The only `GraphStep` calls pass the current
-item as `to`. Thus `item.out` remains empty before every such call, including
-multiple calls during the match and predecessor loops.
-
-## Conclusion
-
-At `GraphStep#MatchLink`, Lemma 2 gives `match != item`; at
-`GraphBranchSamePrice`, Lemma 3 gives `predecessor != item`. Lemma 4 gives
-`item.out.Empty()` at both sites. Therefore the `Item.Link()` precondition
-holds at both call sites.
-
-The premises are sufficient for the local acyclicity step: adding an edge
-`from → item` cannot create a cycle when `item.out` is empty and `from` is
-not `item`. This proof establishes the freshness and empty-target obligations
-for `GraphStep`; the complete DAG theorem additionally requires that no
-other code mutates graph edges outside the annotated `Item.Link` operations
-and that the graph is initially acyclic.
-
-## Revalidation checklist
-
-- `NewPriceSpanSet` still initializes `EverInserted` empty.
-- `GraphWalk#Step` still occurs before `GraphWalk#InsertItem`.
-- The insertion alias still appends the current item after `GraphStep`.
-- `GraphStep()` retains its `!slices.Contains(EverInserted, item)` precondition.
-- `AllIntersections` still returns only a slice of `EverInserted`.
-- `AllIn` still yields only `in.At(i)` for indices in `in.Size()`.
-- `Item#constructor` still guarantees an empty `out`.
-- `Item#constructor` still sets `Price.Base` to the input price and `Price.Bound`
-  to `math.MaxInt32`.
-- `Item.Link` still changes only `from.out` and `to.in`.
-- No additional graph mutation path is introduced.
+This proof uses the current `AllIntersections` alias's provenance property
+(results are selected only from `EverInserted`), the `AllIn` vector
+iteration, the `Item.Link` vector summaries, and the fresh-object premise.
+It accounts for conditional `GraphWalk#InsertItem`, tree-history append from
+`ItemTruncate#Insert`, and `Item.Join`. It does not depend on either
+`dag-acyclic.md` or `fresh-item-valid.md`; it is the prerequisite proof for
+those results.
