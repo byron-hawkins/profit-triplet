@@ -85,9 +85,28 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 	}
 }
 
+/* @^MutuallyExclusiveJoin(item *Item, twin *Item):
+       if item.Bound == twin.Bound && twin.twin != nil { return false }
+       for left := item; left != nil; left = left.twin {
+         for right := twin; right != nil; right = right.twin {
+           if left == right { return false }
+         }
+       }
+       return true
+ */
+
+/* @^UniqueTwins(item *Item):
+       for ego := item; ego.twin != nil; ego = ego.twin {
+         for successor := ego.twin; successor != nil; successor = successor.twin {
+           if ego == successor { return false }
+         }
+       }
+       return true
+ */
+
 /* @-Item#Join()
- * (?)pre-condition: func () bool { if twin.twin != nil { return false } for ego := item.twin; ego != nil; ego = ego.twin { if twin == ego { return false } } return true }()
- * (?)post-condition: func () bool { for ego := item.twin; ego != nil; ego = ego.twin { if twin == ego { return false } } return true }()
+ * (?)pre-condition: MutuallyExclusiveJoin(item, twin)
+ * (?)post-condition: UniqueTwins(item)
  */
 func (item *Item) Join(twin *Item) {
 	/* @-Item#Join#CheckTwin: predicate */
@@ -152,27 +171,23 @@ func (set *PriceSpanSet) String() string {
 	return strings.Join(lines, "\n")
 }
 
-/* @^PriceBounds:
-   func() bool {
-     for _, i := range input {
-       if i.Price <= 0 || i.Price >= 10000 {
-         return false
-       }
-     }; return true
-   }()
+/* @^PriceBounds(input []util.Input):
+       for _, i := range input {
+         if i.Price <= 0 || i.Price >= 10000 {
+           return false
+         }
+       }; return true
 */
 
-/* @^InputSizeBounds:
-   func() bool {
-     (len(input) < math.MaxInt32) &&
-     (set.ItemIndex.Load() < (math.MaxInt32 - int32(len(input)))) &&
-     (set.ItemIndex.Load() >= int32(0))
-   }()
+/* @^InputSizeBounds(set *PriceSpanSet, input []util.Input):
+       (len(input) < math.MaxInt32) &&
+       (set.ItemIndex.Load() < (math.MaxInt32 - int32(len(input)))) &&
+       (set.ItemIndex.Load() >= int32(0))
 */
 
 /* @-PriceSpanSet.GraphWalk()
- * (?)pre-condition: PriceBounds
- * (?)pre-condition: InputSizeBounds
+ * (?)pre-condition: PriceBounds(input)
+ * (?)pre-condition: InputSizeBounds(set, input)
  */
 func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate */
@@ -196,6 +211,13 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 
 	fmt.Println(set)
 }
+
+/* @^IdenticalTwins(item *Item):
+       for ego := item.twin; ego != nil; ego = ego.twin {
+         if (item.Price.Base != ego.Price.Base || item.Price.Bound != ego.Price.Bound) { return false }
+       }
+       return true
+ */
 
 /* @-PriceSpanSet.GraphStep()
  * (?)pre-condition: !slices.Contains(set.tree.EverInserted, item)
@@ -263,21 +285,28 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 	return insert;
 }
 
-/* @-PriceSpanSet.MatchTruncate() */
+/* @-PriceSpanSet.MatchTruncate()
+ * (?)pre-condition: IdenticalTwins(match)
+ */
 func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
 	/* @-PriceSpanSet.MatchTruncate#Delete */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
   /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
 	twin, twinned := set.tree.Find(match.Price.Base, at)
-  /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate */
+	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
+	if twinned {
+    /* @-PriceSpanSet.MatchTruncate#JoinSameInterval: call */
+	  twin.Join(match)
+  }
+  /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate
+   * (?)post-condition: IdenticalTwins(twin)
+   */
   for ego := match; ego != nil; ego = ego.twin {
     /* @-PriceSpanSet.MatchTruncate#Truncate */
     ego.Price.Bound = at
   }
 	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
 	if twinned {
-    /* @-PriceSpanSet.MatchTruncate#JoinSameInterval: call */
-	  twin.Join(match)
 	  /* @-PriceSpanSet.MatchTruncate#ElideSameInterval */
     return false, nil
   } else {
