@@ -12,7 +12,7 @@ spelling is freely chosen by the author, subject to the identifier syntax of
 the language or notation in which it is used. It is not a literal string
 equal to the nonterminal's name.
 
-For example, `<abstract-model-name>` can be instantiated as `PriceBounds`
+For example, `<abstraction-name>` can be instantiated as `PriceBounds`
 or `InputSizeBounds`.
 
 Freshness is a contextual constraint, not a property ordinary BNF can enforce:
@@ -21,7 +21,7 @@ Freshness is a contextual constraint, not a property ordinary BNF can enforce:
   the namespace and scope of that declaration. It must not collide with a
   different declaration already in scope.
 - When a name occurs as a reference, it resolves to the matching declaration;
-  it is not a new fresh choice. For example, an abstract-model name in an
+  it is not a new fresh choice. For example, an abstraction name in an
   invariant or alias refers to the abstract-model declaration with that name.
 - Two references to the same declaration must use the same spelling.
 - Name freshness does not mean that every occurrence must have a different
@@ -30,7 +30,7 @@ Freshness is a contextual constraint, not a property ordinary BNF can enforce:
 
 The applicable namespace and scope are determined by the construct that
 introduces the name. Unless a more specific rule says otherwise, an
-abstract-model name is unique among abstract-model declarations in the
+abstraction name is unique among abstract-model declarations in the
 annotation set being parsed.
 
 ## Why this is not encoded in the BNF
@@ -49,6 +49,13 @@ An abstract-model declaration introduces a fresh abstract-model name and
 associates it with its body. An occurrence of that name in an invariant
 definition or model alias refers to the declaration; it does not introduce
 another declaration.
+
+An abstraction name may be referenced only through the
+`<abstraction-invocation>` production. It must not be referenced within
+`<go>` or `<go+>` text, including as a Go identifier or function call.
+Consequently, a `<go>` or `<go+>` fragment cannot invoke an abstract model;
+abstraction references must occur only where the BNF explicitly permits an
+`<abstraction-invocation>`.
 
 Parsing still requires the source annotation to conform to the productions
 in `symbolic-abstraction.bnf`. The naming rules do not relax syntactic

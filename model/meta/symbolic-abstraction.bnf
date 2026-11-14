@@ -14,7 +14,7 @@
 <element-label> ::= "predicate" | "panic" | "loophead" | "call"
 <source-line> ::= (a single line of source code in the golang program)
 
-<summary-annotation> ::= "/* @+" <summary-tag> <relates> <alias> <comment-close>
+<summary-annotation> ::= "/* @+" <summary-tag> <relates> <alias> <maybe-invariant-list> <comment-close>
 <summary-tag> ::= <go-type> "." <function>
 <function> ::= <function-name> | <function-signature>
 
@@ -53,9 +53,10 @@
 <maybe-space> ::= " " | ""
 <comment-close> ::= "*/" | "\n */" | "\r\n */"
 
-<go> ::= (free-form inline golang, excluding newline and "*/",possibly containing <variable> for <substitution-list>)
-<go+> ::= (free-form golang, including newlines but excluding comments and excluding an unmatched closing comment;
-           taken semantically as <body> in `func(...) (bool) { <body> }`;
+<go> ::= (free-form inline golang, non-empty, excluding newline and "*/",
+          possibly containing <variable> for <substitution-list>)
+<go+> ::= (free-form golang, non-empty, including newlines but excluding comments and excluding
+           an unmatched closing comment; taken semantically as <body> in `func(...) (bool) { <body> }`;
            if <body> contains no `return`, assume a tacet prepended one, i.e., `return <body>`)
 <go-type> ::= (any valid golang type specifier)
 <go-scope-variable> ::= (any variable identifier that is valid in the scope associated with the enclosing annotation)
