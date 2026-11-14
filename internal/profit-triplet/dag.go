@@ -8,9 +8,12 @@ import (
  "sync/atomic"
  "github.com/rishabhofficial/golang-standard-template-library/containers/vector"
  "github.com/rdleal/intervalst/interval"
+ "gopkg.in/fifo.v0"
 
 	"demo/profit-triplet/pkg/util"
 )
+
+ // "github.com/go-fifo/fifo"
 
 /* @+atomic.Int32: data-model n int32 */
 /* @+atomic.Int32.Add(n int): alias func (i *atomic.Int32) Add(n int) { i.n += n } */
@@ -78,7 +81,7 @@ func NewPriceSpanSet() (PriceSpanSet) {
 }
 
 /* @-Item#constructor:
- * (?)post-condition: return Item{ Price: PriceSpan{ Base: price, Bound: math.MaxInt32 }, out: vector.NewVector[*Item]() }
+ * (?)post-condition: return Item{ Margin: margin, Price: PriceSpan{ Base: price, Bound: math.MaxInt32 }, best: in: make([]int, 3), vector.NewVector[*Item](), out: vector.NewVector[*Item](), twin = nil }
  */
 func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 	return Item {
@@ -92,24 +95,34 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 	}
 }
 
-/* @^JoinHomogeneousLarger(item *Item, twin *Item):
-       ispan := (item.Bound - item.Base)
-       tspan := (twin.Bound - twin.Base)
-       if (ispan >= tspan) { return false }
-       for i := item.twin; i != nil; i = i.twin {
-         if (ispan != (i.Bound - i.Base)) { return false }
+/* @^JoinHomogeneousLarger(existing *Item, joining *Item):
+       ispan := (existing.Price.Bound - existing.Price.Base)
+       tspan := (joining.Price.Bound - joining.Price.Base)
+
+       if joining.twin == nil && ispan == tspan { return true } // append unmatched fresh singleton
+
+       if (ispan >= tspan) { return false } // append truncated matched chain
+       for i := existing.twin; i != nil; i = i.twin {
+         if (ispan != (i.Price.Bound - i.Price.Base)) { return false }
        }
-       for i := twin.twin; i != nil; i = i.twin {
-         if (tspan != (i.Bound - i.Base)) { return false }
+       for i := joining.twin; i != nil; i = i.twin {
+         if (tspan != (i.Price.Bound - i.Price.Base)) { return false }
        }
        return true
  */
 
-/* @^MutuallyExclusiveJoin(item *Item, twin *Item):
-       if item.Bound == twin.Bound { return false }
-       for left := item; left != nil; left = left.twin {
-         for right := twin; right != nil; right = right.twin {
-           if left == right { return false }
+/* @^MutuallyExclusiveJoin(existing *Item, joining *Item):
+       if existing == joining { return false }
+       if existing.Price.Bound == joining.Price.Bound {
+         if (joining.twin != nil) { return false } // allow only an unmatched fresh singleton
+         for x := existing.twin; x != nil; x = x.twin {
+           if (x == joining) { return false }
+         }
+       } else {
+         for left := existing; left != nil; left = left.twin {
+           for right := joining; right != nil; right = right.twin {
+             if left == right { return false }
+           }
          }
        }
        return true
@@ -123,10 +136,6 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
        }
        return true
  */
-
- // already may have item.twinA -> .twinB -> ... -> .twinZ in order
- // twin.index > twinZ.index
- // need to push .twinZ -> twin, else out of order
 
 /* @-Item#Join()
  * (?)pre-condition: JoinHomogeneousLarger(item, twin)
@@ -176,9 +185,47 @@ func (item *Item) String() string {
 	return fmt.Sprintf("%v: %v @ %v in[%v] x out [%v]", item.index, item.Price, item.Margin, edges(item.in), edges(item.out))
 }
 
+/* @^DirectedMonotonicGraph(roots []*Item):
+       visited := make(map[int]*Item)
+       q := fifo.New[*Item](1024)
+       for _, root := range roots {
+         q.Enqueue(root)
+       }
+       for q.Len() > 0 {
+         i := q.Dequeue()
+         for o := range i.out {
+           if visited[o.index] { continue }
+           if (i.index >= o.index) { return false }
+           if (i.Price.Base >= o.Price.Base) { return false }
+           visited[o.index] = o
+           q.Enqueue(o)
+         }
+       }
+       return true
+ */
+
+/* @^DirectedMonotonicSubGraph(root *Item):
+       visited := make(map[int]*Item)
+       q := fifo.New[*Item](1024)
+       q.Enqueue(root)
+       for q.Len() > 0 {
+         i := q.Dequeue()
+         for o := range i.out {
+           if visited[o.index] { continue }
+           if (i.index >= o.index) { return false }
+           if (i.Price.Base >= o.Price.Base) { return false }
+           visited[o.index] = o
+           q.Enqueue(o)
+         }
+       }
+       return true
+ */
+
 /* @-Item.Link():
  * (?)pre-condition: to.out.Empty() && from != to
+ * (?)pre-condition: DirectedMonotonicSubGraph(from)
  * (?)post-condition: to.out.Empty() && slices.Contains(from.out.elements, to) && slices.Contains(to.in.elements, from)
+ * (?)post-condition: DirectedMonotonicSubGraph(from)
  */
 func (from *Item) Link(to *Item) {
 	/* @-Item.Link#out: call */
@@ -210,9 +257,12 @@ func (set *PriceSpanSet) String() string {
        (set.ItemIndex.Load() >= int32(0))
 */
 
+// TODO: possible to allow non-empty PSS, but requires that only this function ever changes a PSS
+
 /* @-PriceSpanSet.GraphWalk()
  * (?)pre-condition: PriceBounds(input)
  * (?)pre-condition: InputSizeBounds(set, input)
+ * (?)pre-condition: len(set.tree) == 0
  */
 func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate */
@@ -256,6 +306,8 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 
 /* @-PriceSpanSet.GraphStep()
  * (?)pre-condition: !slices.Contains(set.tree.EverInserted, item)
+ * (?)pre-condition: DirectedMonotonicGraph(set.roots)
+ * (?)post-condition: DirectedMonotonicGraph(set.roots)
  */
 func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 	insert := true
@@ -289,7 +341,9 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 			} else {
 				/* @-PriceSpanSet.GraphStep#CheckSameInterval: predicate */
         if item.Price.Bound == match.Price.Bound {
-					/* @-PriceSpanSet.GraphStep#JoinSameInterval: call */
+					/* @-PriceSpanSet.GraphStep#JoinSameInterval: call
+           * (?)post-condition: !slices.Contains(set.tree.EverInserted, item)
+           */
 					match.Join(item)
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
 					insert = false
@@ -332,7 +386,9 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
 	twin, twinned := set.tree.Find(match.Price.Base, at)
 	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
 	if twinned {
-    /* @-PriceSpanSet.MatchTruncate#JoinSameInterval: call */
+    /* @-PriceSpanSet.MatchTruncate#JoinSameInterval: call
+     * (?)post-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
+     */
 	  twin.Join(match)
   }
   /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate

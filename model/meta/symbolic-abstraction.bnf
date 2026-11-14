@@ -55,7 +55,7 @@
 
 <go> ::= (free-form inline golang, non-empty, excluding newline and "*/",
           possibly containing <variable> for <substitution-list>)
-<go+> ::= (free-form golang, non-empty, including newlines but excluding comments and excluding
+<go+> ::= (free-form golang, non-empty, including newlines but excluding C-style comments and excluding
            an unmatched closing comment; taken semantically as <body> in `func(...) (bool) { <body> }`;
            if <body> contains no `return`, assume a tacet prepended one, i.e., `return <body>`)
 <go-type> ::= (any valid golang type specifier)
