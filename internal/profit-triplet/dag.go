@@ -8,7 +8,7 @@ import (
  "sync/atomic"
  "github.com/rishabhofficial/golang-standard-template-library/containers/vector"
  "github.com/rdleal/intervalst/interval"
- "gopkg.in/fifo.v0"
+ _ "gopkg.in/fifo.v0"
 
 	"demo/profit-triplet/pkg/util"
 )
@@ -30,7 +30,7 @@ import (
 /* @+interval.SearchTree.AllIntersections(a int, b int):
  * alias func (tree *interval.SearchTree) AllIntersections(a, b int) ([]*Item, bool) { m := make([]*Item, 0); for _, i := range tree.EverInserted { if i.Price.Base <= b && i.Price.Bound >= a { m = append(m, i) } } return m, len(m) > 0 }
  * @+interval.SearchTree.Find(a int, b int):
- * alias func (tree *interval.SearchTree) Find(a, b int) (*Item, bool) { for _, i := range * tree.EverInserted { if i.Price.Base == a && i.Price.Bound == b { return i, true } } return nil, false }
+ * alias func (tree *interval.SearchTree) Find(a, b int) (*Item, bool) { for _, i := range tree.EverInserted { if i.Price.Base == a && i.Price.Bound == b { return i, true } } return nil, false }
  * @+interval.SearchTree.Insert(a int, b int, i *Item):
  * alias func (tree *interval.SearchTree) Insert(a, b int, i *Item) (error) { tree.EverInserted = append(tree.EverInserted, i); slices.SortFunc(tree.EverInserted, compare_items) return nil }
  * (?)pre-condition: i.Price.Base < i.Price.Bound && a == i.Price.Base && b == i.Price.Bound
@@ -81,13 +81,16 @@ func NewPriceSpanSet() (PriceSpanSet) {
   return PriceSpanSet { roots: vector.NewVector[*Item](), tree: interval.NewSearchTree[*Item,int](compare) }
 }
 
-/* @-Item#Constructor */
+/* @-Item#Constructor:
+ * (?)pre-condition: (set.ItemIndex.Load() < math.MaxInt32) && (set.ItemIndex.Load() >= int32(0))
+ */
 func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
   /* @-Item#ConstructorWatermark: call */
   prior := set.ItemIndex.Load()
+  _ = prior
 
   /* @-Item#Construct:
-   * (?)post-condition: i.index > prior && i.Margin == margin && i.Price == PriceSpan{ price, math.MaxInt32 } && i.best == [3]int{ margin, 0, 0 } && i.in.Empty() && i.out.Empty() && i.twin == nil
+   * (?)post-condition: i.index <= set.ItemIndex.Load() && i.index > prior && i.Margin == margin && i.Price == PriceSpan{ price, math.MaxInt32 } && i.best == [3]int{ margin, 0, 0 } && i.in.Empty() && i.out.Empty() && i.twin == nil
    */
   i := Item {
     /* @-Item#ConstructIndex: call */
@@ -100,63 +103,6 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 		nil,
 	}
   return i
-}
-
-/* @^JoinHomogeneousLarger(existing *Item, joining *Item):
-       ispan := (existing.Price.Bound - existing.Price.Base)
-       tspan := (joining.Price.Bound - joining.Price.Base)
-
-       if joining.twin == nil && ispan == tspan { return true } // append unmatched fresh singleton
-
-       if (ispan >= tspan) { return false } // append truncated matched chain
-       for i := existing.twin; i != nil; i = i.twin {
-         if (ispan != (i.Price.Bound - i.Price.Base)) { return false }
-       }
-       for i := joining.twin; i != nil; i = i.twin {
-         if (tspan != (i.Price.Bound - i.Price.Base)) { return false }
-       }
-       return true
- */
-
-/* @^MutuallyExclusiveJoin(existing *Item, joining *Item):
-       if existing.index >= joining.index { return false }
-       if existing.Price.Bound == joining.Price.Bound {
-         if (joining.twin != nil) { return false } // allow only an unmatched fresh singleton
-         for x := existing.twin; x != nil; x = x.twin {
-           if (x.index >= joining.index) { return false }
-         }
-       } else {
-         for left := existing; left != nil; left = left.twin {
-           for right := joining; right != nil; right = right.twin {
-             if left.index >= right.index { return false }
-           }
-         }
-       }
-       return true
- */
-
-/* @^UniqueTwins(item *Item):
-       for ego := item; ego.twin != nil; ego = ego.twin {
-         for successor := ego.twin; successor != nil; successor = successor.twin {
-           if ego == successor { return false }
-         }
-       }
-       return true
- */
-
-/* @-Item#Join()
- * (?)pre-condition: JoinHomogeneousLarger(item, twin)
- * (?)pre-condition: MutuallyExclusiveJoin(item, twin)
- * (?)post-condition: UniqueTwins(item)
- */
-func (item *Item) Join(twin *Item) {
-	/* @-Item#Join#CheckTwin: predicate */
-	if item.twin != nil {
-    /* @-Item#Join#SpliceTwin */
-		twin.twin = item.twin
-	}
-  /* @-Item#Join#JoinTwin */
-	item.twin = twin
 }
 
 /* @-AllIn() */
@@ -307,6 +253,7 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 }
 
 /* @^IdenticalTwins(item *Item):
+       if item == nil { return true }
        for ego := item.twin; ego != nil; ego = ego.twin {
          if (item.Price.Base != ego.Price.Base || item.Price.Bound != ego.Price.Bound) { return false }
        }
@@ -324,6 +271,10 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
         }
         return true
 */
+
+// • price bound can't increase
+// • every existing item is either ignored (unmatched), base-matched at item.Price.Base, or truncated at item.Price.Base
+// •
 
 /* @-PriceSpanSet.GraphStep()
  * (?)pre-condition: func () bool { for _, e := range set.tree.EverInserted { for t := e; t != nil; t = t.twin { if t.index >= item.index { return false } } } return true }()
@@ -347,7 +298,9 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
 			if item.Price.Base > match.Price.Base {
 				e := error(nil)
-				/* @-PriceSpanSet.GraphStep#MatchTruncate: call */
+				/* @-PriceSpanSet.GraphStep#MatchTruncate: call
+         * (?)post-condition: func () bool { for ego := match; ego != nil; ego = ego.twin { if ego.index < item.index && ego.Price.Bound > item.Price.Base { return false } }; return true }()
+         */
 				insert, e = set.MatchTruncate(match, item.Price.Base)
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
@@ -366,11 +319,15 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
          * (?)pre-condition: item.Price.Base == match.Price.Base
          */
         if item.Price.Bound == match.Price.Bound {
-					/* @-PriceSpanSet.GraphStep#JoinSameInterval: call
-           * (?)pre-condition: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= item.index) { return false } } }()
-           * (?)post-condition: !slices.Contains(set.tree.EverInserted, item)
+					/* @-PriceSpanSet.GraphStep#SpliceTwinsRight:
+           * (?)pre-condition: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= item.index) { return false } } return true }()
            */
-					match.Join(item)
+          item.twin = match.twin
+					/* @-PriceSpanSet.GraphStep#SpliceTwinsLeft
+           * (?)post-condition: !slices.Contains(set.tree.EverInserted, item)
+           * (?)post-condition: UniqueTwins(match)
+           */
+          match.twin = item
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
 					insert = false
 				}
@@ -402,27 +359,75 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 	return insert;
 }
 
+/* @^JoinHomogeneousLarger(existing *Item, joining *Item):
+       ispan := (existing.Price.Bound - existing.Price.Base)
+       tspan := (joining.Price.Bound - joining.Price.Base)
+
+       if (ispan >= tspan) { return false } // append truncated matched chain
+       for i := existing.twin; i != nil; i = i.twin {
+         if (ispan != (i.Price.Bound - i.Price.Base)) { return false }
+       }
+       for i := joining.twin; i != nil; i = i.twin {
+         if (tspan != (i.Price.Bound - i.Price.Base)) { return false }
+       }
+       return true
+ */
+
+/* @^MutuallyExclusiveJoin(existing *Item, joining *Item):
+       if existing.index >= joining.index { return false }
+       if existing.Price.Bound == joining.Price.Bound { return false }
+
+       for left := existing; left != nil; left = left.twin {
+         for right := joining; right != nil; right = right.twin {
+           if left.index >= right.index { return false }
+         }
+       }
+       return true
+ */
+
+/* @^UniqueTwins(item *Item):
+       for ego := item; ego.twin != nil; ego = ego.twin {
+         for successor := ego.twin; successor != nil; successor = successor.twin {
+           if ego == successor { return false }
+         }
+       }
+       return true
+ */
+
 /* @-PriceSpanSet.MatchTruncate()
  * (?)pre-condition: IdenticalTwins(match)
  */
 func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
 	/* @-PriceSpanSet.MatchTruncate#Delete call */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
-  /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
-	twin, twinned := set.tree.Find(match.Price.Base, at)
-	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
-	if twinned {
-    /* @-PriceSpanSet.MatchTruncate#JoinSameInterval: call
-     * (?)post-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
-     */
-	  twin.Join(match)
-  }
+  match.Price.Bound = at
+  var ego *Item
   /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate
+   * (?)pre-condition: JoinHomogeneousLarger(existing, match)
+   * (?)pre-condition: MutuallyExclusiveJoin(existing, match)
    * (?)post-condition: IdenticalTwins(twin)
    */
-  for ego := match; ego != nil; ego = ego.twin {
-    /* @-PriceSpanSet.MatchTruncate#Truncate */
-    ego.Price.Bound = at
+  for ego = match; ego.twin != nil; ego = ego.twin {
+    /* @-PriceSpanSet.MatchTruncate#Truncate
+     * (?)pre-condition: ego.Price.Bound > at
+     */
+    ego.twin.Price.Bound = at
+  }
+  /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
+	existing, twinned := set.tree.Find(match.Price.Base, at)
+	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
+	if twinned {
+    /* @-PriceSpanSet.MatchTruncate#SpliceTwinsRight
+     * (?)pre-condition: UniqueTwins(existing)
+     * (?)pre-condition: UniqueTwins(match)
+     * (?)pre-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
+     */
+    ego.twin = existing.twin
+    /* @-PriceSpanSet.MatchTruncate#SpliceTwinsLeft
+     * (?)post-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
+     * (?)post-condition: UniqueTwins(existing)
+     */
+    existing.twin = match
   }
 	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
 	if twinned {

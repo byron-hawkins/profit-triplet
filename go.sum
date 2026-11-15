@@ -4,3 +4,5 @@ github.com/rishabhofficial/golang-standard-template-library v0.0.0-2026012706284
 github.com/rishabhofficial/golang-standard-template-library v0.0.0-20260127062847-9f982fae8836/go.mod h1:h6pAn/MLQ2AAMALWQ2VAB6FH8jDf0AFhZqx8L/nQ2E4=
 golang.org/x/exp v0.0.0-20260112195511-716be5621a96 h1:Z/6YuSHTLOHfNFdb8zVZomZr7cqNgTJvA8+Qz75D8gU=
 golang.org/x/exp v0.0.0-20260112195511-716be5621a96/go.mod h1:nzimsREAkjBCIEFtHiYkrJyT+2uy9YZJB7H1k68CXZU=
+gopkg.in/fifo.v0 v0.0.1 h1:tFxpv2FO1ZYwNCVsySQVXyYb2fu8Wjesc/l+46SrGBM=
+gopkg.in/fifo.v0 v0.0.1/go.mod h1:9umdwHFXza3J5Lo7UMbY09IRp3iWqSYD8tQdHLWJIuw=
