@@ -283,16 +283,16 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        return true
  */
 
- /* @^OrderedIntersection(matches []*Item):
-        c := len(matches)
-        if c < 2 { return true }
-        for i := range (c - 1) {
-          if matches[i].Price.Base > matches[i+1].Price.Base { return false }
-          if matches[i].Price.Base == matches[i+1].Price.Base {
-            if matches[i].Price.Bound >= matches[i+1].Price.Bound { return false }
-          }
-        }
-        return true
+/* @^OrderedIntersection(matches []*Item):
+       c := len(matches)
+       if c < 2 { return true }
+       for i := range (c - 1) {
+         if matches[i].Price.Base > matches[i+1].Price.Base { return false }
+         if matches[i].Price.Base == matches[i+1].Price.Base {
+           if matches[i].Price.Bound >= matches[i+1].Price.Bound { return false }
+         }
+       }
+       return true
 */
 
 /* PriceCompatible(a *Item, b *Item):
@@ -393,7 +393,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
            * (?)pre-condition: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= item.index) { return false } } return true }()
            */
           item.twin = match.twin
-					/* @-PriceSpanSet.GraphStep#SpliceTwinsLeft
+					/* @-PriceSpanSet.GraphStep#SpliceTwinsLeft:
            * (?)post-condition: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= set.ItemIndex.Load()) { return false } } return true }()
            * (?)post-condition: UniqueTwins(match)
            */
@@ -496,7 +496,7 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
      * (?)pre-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
      */
     ego.twin = existing.twin
-    /* @-PriceSpanSet.MatchTruncate#SpliceTwinsLeft
+    /* @-PriceSpanSet.MatchTruncate#SpliceTwinsLeft:
      * (?)post-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
      * (?)post-condition: UniqueTwins(existing)
      */

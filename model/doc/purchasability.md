@@ -68,3 +68,18 @@ A0:
 - A1
 - A2
 - ...
+@^DirectedMonotonicGraph(roots []*Item):
+@^DirectedMonotonicSubGraphs(pivot *Item):
+@^PriceBounds(input []util.Input):
+@^InputSizeBounds(set *PriceSpanSet, input []util.Input):
+@^PurchasableTrio(a *Item, b *Item, c *Item) {
+@^PurchasableTriosOnPaths(set *PriceSpanSet):
+@^AllPathTriosPurchasable(set *PriceSpanSet):
+@^IdenticalTwins(item *Item):
+@^OrderedIntersection(matches []*Item):
+@^PriceCompatible(a *Item, b *Item):
+@^LesserRootsPriceCompatible(set *PriceSpanSet, i *Item):
+@^GreaterRootsPriceIncompatible(set *PriceSpanSet, i *Item):
+@^JoinHomogeneousLarger(existing *Item, joining *Item):
+@^MutuallyExclusiveJoin(existing *Item, joining *Item):
+@^UniqueTwins(item *Item):
