@@ -6,7 +6,6 @@ import (
  "slices"
  "math"
  "sync/atomic"
- "github.com/rishabhofficial/golang-standard-template-library/containers/vector"
  "github.com/rdleal/intervalst/interval"
  _ "gopkg.in/fifo.v0"
 
@@ -61,15 +60,15 @@ type Item struct {
 
 	best   [3]int
 
-	in  *vector.Vector[*Item]
-	out *vector.Vector[*Item]
+	in  []*Item
+	out []*Item
 	twin *Item
 }
 
 /* Note: unsafe for concurrent execution */
 type PriceSpanSet struct {
   ItemIndex atomic.Int32
-  roots *vector.Vector[*Item]   /* for proof purposes only, can be omitted for release build */
+  roots []*Item   /* for proof purposes only, can be omitted for release build */
   all []*Item                   /* for proof purposes only, can be omitted for release build */
   tree *interval.SearchTree[*Item,int]
 }
@@ -79,7 +78,7 @@ func compare_items (a, b *Item) int { if a.Price.Base == b.Price.Base { return a
 
 /* @-NewPriceSpanSet(): alias func NewPriceSpanSet() (PriceSpanSet) { return PriceSpanSet{ tree { make([]*Item, 0) } } } */
 func NewPriceSpanSet() (PriceSpanSet) {
-  return PriceSpanSet { roots: vector.NewVector[*Item](), tree: interval.NewSearchTree[*Item,int](compare) }
+  return PriceSpanSet { roots: make([]*Item, 0), tree: interval.NewSearchTree[*Item,int](compare) }
 }
 
 /* @-Item#Constructor:
@@ -91,7 +90,7 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
   if prior == math.MaxInt32 { panic("Error: PriceSpanSet.ItemIndex overflow") }
 
   /* @-Item#Construct:
-   * (?)post-condition: i.index <= set.ItemIndex.Load() && i.index > prior && i.Margin == margin && i.Price == PriceSpan{ price, math.MaxInt32 } && i.best == [3]int{ margin, 0, 0 } && i.in.Empty() && i.out.Empty() && i.twin == nil
+   * (?)post-condition: i.index <= set.ItemIndex.Load() && i.index > prior && i.Margin == margin && i.Price == PriceSpan{ price, math.MaxInt32 } && i.best == [3]int{ margin, 0, 0 } && len(i.in) == 0 && len(i.out) == 0 && i.twin == nil
    */
   i := Item {
     /* @-Item#ConstructIndex: call */
@@ -99,40 +98,21 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (Item) {
 		margin,
 		PriceSpan { price, math.MaxInt32 },
 		[3]int{ margin, 0, 0 },
-		vector.NewVector[*Item](),
-		vector.NewVector[*Item](),
+		make([]*Item, 0),
+		make([]*Item, 0),
 		nil,
 	}
   return i
 }
 
-/* @-AllIn() */
-func (item *Item) AllIn(yield func(index int, item *Item) bool) {
-	/* @-AllIn#range: loophead, predicate, call */
-	for i := range item.in.Size() {
-	  /* @-AllIn#yield: predicate, call */
-		if !yield(i, item.in.At(i)) {
-			return
-		}
-	}
-}
-
-func (item *Item) AllOut(yield func(index int, item *Item) bool) {
-	for i := range item.out.Size() {
-		if !yield(i, item.out.At(i)) {
-			return
-		}
-	}
-}
-
 func (item *Item) String() string {
-	edges := func (v *vector.Vector[*Item]) string {
-		if v.Empty() {
+	edges := func (v []*Item) string {
+		if len(v) == 0 {
 			return ""
 		}
-		list := make([]string, v.Size())
-		for i := range v.Size() {
-			list[i] = fmt.Sprintf("%v", v.At(i).index)
+		list := make([]string, len(v))
+		for i := range len(v) {
+			list[i] = fmt.Sprintf("%v", v[i].index)
 		}
 		return strings.Join(list, ",")
   }
@@ -187,18 +167,18 @@ func (item *Item) String() string {
        return true
  */
 
-// (?)post-condition: to.out.Empty() && slices.Contains(from.out.elements, to) && slices.Contains(to.in.elements, from)
+// (?)post-condition: len(to.out) == 0 && slices.Contains(from.out, to) && slices.Contains(to.in, from)
 
 /* @-Item.Link():
- * (?)pre-condition: to.out.Empty() && from != to && from.index < to.index && from.Price.Base < to.Price.Base
+ * (?)pre-condition: len(to.out) == 0 && from != to && from.index < to.index && from.Price.Base < to.Price.Base
  * (?)pre-condition: DirectedMonotonicSubGraphs(from)
  * (?)post-condition: DirectedMonotonicSubGraphs(from)
  */
 func (from *Item) Link(to *Item) {
 	/* @-Item.Link#out: call */
-	from.out.PushBack(to)
+	from.out = append(from.out, to)
 	/* @-Item.Link#in: call */
-	to.in.PushBack(from)
+	to.in = append(to.in, from)
 }
 
 func (set *PriceSpanSet) String() string {
@@ -224,7 +204,7 @@ func (set *PriceSpanSet) String() string {
        (set.ItemIndex.Load() >= int32(0))
 */
 
-/* @^PurchasableTrios(a *Item, b *Item, c *Item) {
+/* @^PurchasableTrio(a *Item, b *Item, c *Item) {
        return a.index < b.index && b.index < c.index && a.Price.Base < b.Price.Base && b.Price.Base < c.Price.Base
      }
  */
@@ -247,6 +227,14 @@ func (set *PriceSpanSet) String() string {
  */
 
 /* @^AllPathTriosPurchasable(set *PriceSpanSet):
+       for item := range set.all {
+         for i := range item.in {
+           i.index < item.index && i.Price.Base < item.Price.Base
+         }
+         for o := range item.out {
+           o.index > item.index && o.Price.Base > item.Price.Base
+         }
+       }
  */
 
 // TODO: possible to allow non-empty PSS, but requires that only this function ever changes a PSS
@@ -414,20 +402,18 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 					insert = false
 				}
         /* @-PriceSpanSet.GraphForkSamePriceCheck: predicate, call */
-        if match.in.Empty() {
+        if len(match.in) == 0 {
           /* @-PriceSpanSet.GraphForkSamePriceRoot: call
-           * (?)pre-condition: slices.Contains(set.roots.elements, match)
+           * (?)pre-condition: slices.Contains(set.roots, match)
            */
-          set.roots.PushBack(item)
+          set.roots = append(set.roots, item)
         } else {
           /* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call
-           * (?)post-condition: func () bool { for ego := match; ego != nil; ego = ego.twin { for _, c := range ego.in.elements { if !PriceCompatible(c, item) { return false } } }; return true }
+           * (?)post-condition: func () bool { for ego := match; ego != nil; ego = ego.twin { for _, c := range ego.in { if !PriceCompatible(c, item) { return false } } }; return true }
            */
-          for _, predecessor := range match.AllIn {
-            /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate
-             * alias predecessor.out.elements[len(predecessor.out.elements)-1] == match
-             */
-            if predecessor.out.Back() == match {
+          for _, predecessor := range match.in {
+            /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
+            if predecessor.out[len(predecessor.out)-1] == match {
               /* @-PriceSpanSet.GraphBranchSamePrice: call
                * (?)pre-condition: LesserRootsPriceCompatible(set, predecessor)
                * (?)post-condition: LesserRootsPriceCompatible(set, item)
@@ -440,7 +426,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 		}
 	} else {
 	  /* @-PriceSpanSet.GraphStep#Root */
-    set.roots.PushBack(item)
+    set.roots = append(set.roots, item)
   }
 	/* @-PriceSpanSet.GraphStep#return */
 	return insert;

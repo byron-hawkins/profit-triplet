@@ -56,3 +56,15 @@ Link(from, to)
 - pre: from.index < to.index, from.Price.Base < to.Price.Base
 - post: from in PriceSpanSet.tree.AllIntersection(i) for all i.Price.Base < to.Price.Base
 - post: to in PriceSpanSet.tree.AllIntersection(i) for all i.Price.Base >= to.Price.Base
+
+
+Dependency graph
+- format
+  - arity
+- condition addressing
+  - A ::= <tag> [pre|post]#
+
+A0:
+- A1
+- A2
+- ...

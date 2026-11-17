@@ -131,8 +131,8 @@ func testGraphIsAcyclic(test *testing.T, input []util.Input) {
 	visit = func(node *Item) bool {
 		visited[node] = true
 		inPath[node] = true
-		for i := range node.out.Size() {
-			successor := node.out.At(i)
+		for i := range len(node.out) {
+			successor := node.out[i]
 			if _, exists := graphNodes[successor]; !exists {
 				test.Fatalf("Node %d references a successor outside the graph", node.index)
 			}
