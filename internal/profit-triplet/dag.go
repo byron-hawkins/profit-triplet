@@ -219,7 +219,7 @@ func (set *PriceSpanSet) String() string {
            for k := range set.all[j+1 : len(set.all)] {
              trio := { i, j, k }
              slices.SortFunc(trio, indexer)
-             c := PriceCompatible(trio[0], trio[1]) && PriceCompatible(trio[1], trio[2])
+             c := GraphReachable(trio[0], trio[1]) && GraphReachable(trio[1], trio[2])
              if c != PurchasableTrio(trio[0], trio[1], trio[2]) { return false }
            }
          }
@@ -295,16 +295,7 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        return true
 */
 
-/* PriceCompatible(a *Item, b *Item):
-       for o := range a.out {
-         if o == b { return true }
-         if o.index < b.index && o.Price.Base < b.Price.Base {
-           return PriceCompatible(p, b)
-         }
-       }
-*/
-
-/* @^PriceCompatible(a *Item, b *Item):
+/* @^GraphReachable(a *Item, b *Item):
        q := fifo.New[*Item](1024)
        for o := range a.out { q.Enqueue(o) }
        visited := make(map[int]*Item)
@@ -320,19 +311,21 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        return false
 */
 
-/* @^LesserRootsPriceCompatible(set *PriceSpanSet, i *Item):
+// induction goal LRGR
+/* @^LesserRootsGraphReachable(set *PriceSpanSet, i *Item):
        for root := range set.tree.roots {
          if root.index < i.index && root.Price.Base < i.Price.Base {
-           if !PriceCompatible(root, i) { return false }
+           if !GraphReachable(root, i) { return false }
          }
        }
        return true
  */
 
-/* @^GreaterRootsPriceIncompatible(set *PriceSpanSet, i *Item):
+// induction goal GRGR
+/* @^GreaterRootsGraphReachable(set *PriceSpanSet, i *Item):
        for root := range set.tree.roots {
          if root.index >= i.index || root.Price.Base >= i.Price.Base {
-           if PriceCompatible(root, i) { return false }
+           if GraphReachable(root, i) { return false }
          }
        }
        return true
@@ -342,25 +335,33 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 // • every existing item is either ignored (unmatched), base-matched at item.Price.Base, or truncated at item.Price.Base
 // •
 
+/* induction goals:
+   • TPUC
+   • MPCI
+   • MPCG
+   • LRGR
+   • GRGR
+ */
+
 /* @-PriceSpanSet.GraphStep()
  * (?)pre-condition: func () bool { for _, e := range set.tree.EverInserted { for t := e; t != nil; t = t.twin { if t.index >= item.index { return false } } } return true }()
  * (?)pre-condition: DirectedMonotonicGraph(set.roots)
- * (?)post-condition: LesserRootsPriceCompatible(set, item)
- * (?)post-condition: GreaterRootsPriceIncompatible(set, item)
+ * (?)post-condition: LesserRootsGraphReachable(set, item)
+ * (?)post-condition: GreaterRootsGraphReachable(set, item)
  */
 func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 	insert := true
 	/* @-PriceSpanSet.GraphStep#TreeQuery: call
    * (?)post-condition: OrderedIntersection(matches)
    */
-	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base)
+	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base) // GRGR: assert unmatched are irrelevant
 	/* @-PriceSpanSet.GraphStep#TreeQueryMatchCheck: predicate */
 	if matched {
 	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate */
 		for _, match := range matches {
 	    /* @-PriceSpanSet.GraphStep#FauxMatch: predicate */
       if match.Price.Bound == item.Price.Base {
-        continue
+        continue  // GRGR: assert not relevant
       }
 			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
 			if item.Price.Base > match.Price.Base {
@@ -369,7 +370,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
          * (?)post-condition: func () bool { for i := match.Price.Base; i < match.Price.Bound; i++ { x, _ := set.tree.AllIntersections(i, i); if !slices.Contains(x, match) { return false } }; return true }()
          * (?)post-condition: func () bool { for i := match.Price.Base; i < item.Price.Base; i++ { x, _ := set.tree.AllIntersections(i, i); if !slices.Contains(x, match) { return false } }; return true }()
          */
-				insert, e = set.MatchTruncate(match, item.Price.Base)
+				insert, e = set.MatchTruncate(match, item.Price.Base) // 2 cases: { true: minimal proxy on truncated (LRGR), false: joined twin chain (LRGR, TPUC }
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
 					/* @-PriceSpanSet.GraphStep#MatchReplaceError: panic */
@@ -380,7 +381,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 					/* @-PriceSpanSet.GraphStep#MatchLink: call
            * (?)pre-condition: ego.index < item.index
            * (?)pre-condition: ego.Price == match.Price
-           * (?)post-condition: PriceCompatible(ego, item)
+           * (?)post-condition: GraphReachable(ego, item)
            */
 					ego.Link(item)
 				}
@@ -399,24 +400,24 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
            */
           match.twin = item
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
-					insert = false
-				}
+					insert = false // join a direct match (LRGR, TPUC)
+				} // else implicit `insert = true`: equivalent proxy on match.in, or root if empty (LRBR)
         /* @-PriceSpanSet.GraphForkSamePriceCheck: predicate, call */
         if len(match.in) == 0 {
           /* @-PriceSpanSet.GraphForkSamePriceRoot: call
            * (?)pre-condition: slices.Contains(set.roots, match)
            */
-          set.roots = append(set.roots, item)
+          set.roots = append(set.roots, item)  // LRBR: how so?
         } else {
           /* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call
-           * (?)post-condition: func () bool { for ego := match; ego != nil; ego = ego.twin { for _, c := range ego.in { if !PriceCompatible(c, item) { return false } } }; return true }
+           * (?)post-condition: func () bool { for ego := match; ego != nil; ego = ego.twin { for _, c := range ego.in { if !GraphReachable(c, item) { return false } } }; return true }
            */
-          for _, predecessor := range match.in {
+          for _, predecessor := range match.in {  // 2 cases: equivalent proxy as direct twin or (price incompatible) peer (LRBR)
             /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
             if predecessor.out[len(predecessor.out)-1] == match {
               /* @-PriceSpanSet.GraphBranchSamePrice: call
-               * (?)pre-condition: LesserRootsPriceCompatible(set, predecessor)
-               * (?)post-condition: LesserRootsPriceCompatible(set, item)
+               * (?)pre-condition: LesserRootsGraphReachable(set, predecessor)
+               * (?)post-condition: LesserRootsGraphReachable(set, item)
                */
               predecessor.Link(item)
             } /* else a path exists over an intermediate item */
@@ -426,7 +427,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 		}
 	} else {
 	  /* @-PriceSpanSet.GraphStep#Root */
-    set.roots = append(set.roots, item)
+    set.roots = append(set.roots, item)  // LRBR: how so?
   }
 	/* @-PriceSpanSet.GraphStep#return */
 	return insert;
@@ -467,13 +468,31 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
        return true
  */
 
+// induction goal: TwinPricesUniquelyChained (TPUC)
+// need an induction goal that only the first arriving instance of Price P occurs in set.tree.EverInserted
+// - subsequent instances matching P or truncated to P will be appended to P.twin
+// - twin chain is unique and acyclic
+
+// induction goal: MinimalPriceCompatibleIntersection (MPCI)
+// need another induction goal that for any input i, AllIntersections returns an optimal set S of price compatible items
+// - items outside S that are price compatible with some element of S will be price compatible with i
+// - items outside S not price compatible with any element of S will not be price compatible with i
+// - items in S are price compatible with i
+// - no item in S is price compatible with any other item in S
+// where inclusion in S covers S.twin...
+
+// possible induction goal: MinimalPriceCompatibleGraph (MPCG)
+// - no forward edges
+// - all paths price compatible
+// - all price compatible on paths
+
 /* @-PriceSpanSet.MatchTruncate()
  * (?)pre-condition: IdenticalTwins(match)
  */
 func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
 	/* @-PriceSpanSet.MatchTruncate#Delete call */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
-  match.Price.Bound = at
+  match.Price.Bound = at // LRGR: assert input supersedes match at new bound
   var ego *Item
   /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate
    * (?)pre-condition: JoinHomogeneousLarger(existing, match)
@@ -484,7 +503,7 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
     /* @-PriceSpanSet.MatchTruncate#Truncate
      * (?)pre-condition: ego.Price.Bound > at
      */
-    ego.twin.Price.Bound = at
+    ego.twin.Price.Bound = at // LRGR: assert input supersedes match at new bound
   }
   /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
 	existing, twinned := set.tree.Find(match.Price.Base, at)
@@ -493,22 +512,22 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
     /* @-PriceSpanSet.MatchTruncate#SpliceTwinsRight
      * (?)pre-condition: UniqueTwins(existing)
      * (?)pre-condition: UniqueTwins(match)
-     * (?)pre-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
+     * (?)pre-condition: func () (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(set.tree.EverInserted, ego) { return false } } return true }()
      */
-    ego.twin = existing.twin
+    ego.twin = existing.twin // TPUC: none of existing.twin... { were the first at existing.Price, occur on match.twin... }
     /* @-PriceSpanSet.MatchTruncate#SpliceTwinsLeft:
-     * (?)post-condition: func (tree *interval.SearchTree[*Item, int]) (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(tree.EverInserted, ego) { return false } } return true }(set.tree)
+     * (?)post-condition: func () (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(set.tree.EverInserted, ego) { return false } } return true }()
      * (?)post-condition: UniqueTwins(existing)
      */
-    existing.twin = match
+    existing.twin = match // TPUC: none of match.twin... { were the first at existing.Price, occur on existing.twin... }
   }
 	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
 	if twinned {
 	  /* @-PriceSpanSet.MatchTruncate#ElideSameInterval */
-    return false, nil
+    return false, nil  // MPCI: AllIntersections on existing.Price is sufficient for match and .twin...
   } else {
 		/* @-PriceSpanSet.MatchTruncate#Insert: call */
-		return true, set.tree.Insert(match.Price.Base, match.Price.Bound, match)
+		return true, set.tree.Insert(match.Price.Base, match.Price.Bound, match)  // MPCI: match should be found at .Price in AllIntersections
 	}
 }
 

@@ -22,13 +22,14 @@
 
 ### Minimal complete purchase compatibility
 
-@-PriceSpanSet.GraphStep#MatchLink: call (3)
+@-PriceSpanSet.GraphStep#MatchLink (3)
+- induction step (of what, exactly?)
 
 
 ### Twin chain integrity
 
 @^IdenticalTwins(item *Item)
-@-PriceSpanSet.GraphStep#MatchLink: call (1) (2)
+@-PriceSpanSet.GraphStep#MatchLink (1) (2)
 @-PriceSpanSet.MatchTruncate#SpliceTwinsLeft (1)
 @-PriceSpanSet.MatchTruncate#SpliceTwinsRight (3)
 @-PriceSpanSet.MatchTruncate#Truncate (1)
