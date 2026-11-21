@@ -297,14 +297,6 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 	fmt.Println(set)
 }
 
-/* @^IdenticalTwins(item *Item):
-       if item == nil { return true }
-       for ego := item.twin; ego != nil; ego = ego.twin {
-         if (item.Price.Base != ego.Price.Base || item.Price.Bound != ego.Price.Bound) { return false }
-       }
-       return true
- */
-
 /* @^OrderedIntersection(matches []*Item):
        c := len(matches)
        if c < 2 { return true }
@@ -410,15 +402,18 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 			} else {
 				/* @-PriceSpanSet.GraphStep#CheckSameInterval: predicate
          * (?)pre-condition: item.Price.Base == match.Price.Base
+         * (!)pre-condition[TCSP]: TwinChainSamePrice(match)
+         * (!)pre-condition[TCSP]: item.twin == nil
          */
         if item.Price.Bound == match.Price.Bound {
 					/* @-PriceSpanSet.GraphStep#SpliceTwinsRight:
-           * (?)pre-condition: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= item.index) { return false } } return true }()
+           * (?)pre-condition[TPUC]: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= item.index) { return false } } return true }()
            */
           item.twin = match.twin
 					/* @-PriceSpanSet.GraphStep#SpliceTwinsLeft:
-           * (?)post-condition: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= set.ItemIndex.Load()) { return false } } return true }()
-           * (?)post-condition: UniqueTwins(match)
+           * (?)post-condition[TPUC]: func () bool { for m := match; m != nil; m = m.twin { if (m.index >= set.ItemIndex.Load()) { return false } } return true }()
+           * (?)post-condition[TPUC]: UniqueTwins(match)
+           * (?)post-condition[TCSP]: TwinChainSamePrice(match)
            */
           match.twin = item
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
@@ -477,7 +472,16 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
        return true
  */
 
-/* @^MutuallyExclusiveJoin(existing *Item, joining *Item):
+/* @^MutuallyExclusivePriceChains(existing *Item, joining *Item):
+       for x := existing; x != nil; x = x.twin {
+         if (x.Price == joining.Price) return false
+       }
+       for j := joining; j != nil; j = j.twin {
+         if (j.Price == existing.Price) return false
+       }
+ */
+
+/* MutuallyExclusiveJoin(existing *Item, joining *Item):
        if existing.index >= joining.index { return false }
        if existing.Price.Bound == joining.Price.Bound { return false }
 
@@ -506,19 +510,39 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 // - no twin appears in set.tree.EverInserted
 // - every twin has a unique root present in set.tree.EverInserted
 //   - every twin root truncation will be applied to each twin in its chain
-/* @^TwinPricesUniquelyChained(set *PriceSpanSet):
+/* @^TwinPricesUniquelyChained[TPUC](set *PriceSpanSet): [TUP,TCSP,TCU] */
+// TODO: where can it be said that if a node is not on a twin chain, then it's in the tree?
+
+/* @^TreeUniquePrices[TUP](set *PriceSpanSet):
        for i, left := range set.tree.EverInserted {
          for _, right := range set.tree.EverInserted[i+1:] {
            if left.Price == right.Price { return false }
          }
-         if left.twin != nil {
-           for tleft := left; tleft.twin != nil; tleft = tleft.twin {
-             if left.Price != tleft.Price { return false }
-             for tright := tleft.twin; tright != nil; tright = tright.twin {
-               if tleft == tright { return false }
-             }
+       }
+       return true
+ */
+/* @^TreeExcludesTwins[TET](set *PriceSpanSet, node *Item):
+       if !slices.Contains(set.tree.EverInserted, node) { return false }
+       for ego := node.twin; ego != nil; ego = ego.twin {
+         if slices.Contains(set.tree.EverInserted, ego) { return false }
+       }
+       return true
+ */
+ /* @^TwinChainSamePrice[TCSP](set *PriceSpanSet):
+         if left.twin != nil { return true }
+         for tleft := left; tleft.twin != nil; tleft = tleft.twin {
+           if left.Price != tleft.Price { return false }
+         }
+         return true
+ */
+ /* @^TwinChainUnique[TCU](set *PriceSpanSet):
+         if left.twin != nil { return true }
+         for tleft := left; tleft.twin != nil; tleft = tleft.twin {
+           for tright := tleft.twin; tright != nil; tright = tright.twin {
+             if tleft == tright { return false }
            }
          }
+         return true
  */
 
 /* MPCI: AllIntersections returns an optimal set S of price compatible items
@@ -553,17 +577,19 @@ func (set *PriceSpanSet) GraphStep(item *Item) (bool) {
 // - all price compatible on paths
 
 /* @-PriceSpanSet.MatchTruncate()
- * (?)pre-condition: IdenticalTwins(match)
+ * (!)pre-condition[TCSP]: TwinChainSamePrice(match)
  */
 func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
-	/* @-PriceSpanSet.MatchTruncate#Delete call */
+	/* @-PriceSpanSet.MatchTruncate#Delete call
+   * (!)pre-condition[TUP]: TreeExcludesTwins(set, match)
+   */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
   match.Price.Bound = at // LRGR: assert input supersedes match at new bound
   var ego *Item
   /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate
    * (?)pre-condition: JoinHomogeneousLarger(existing, match)
-   * (?)pre-condition: MutuallyExclusiveJoin(existing, match)
-   * (?)post-condition: IdenticalTwins(twin)
+   * (?)pre-condition[TCU]: MutuallyExclusivePriceChains(existing, match)
+   * (?)post-condition[TCSP]: TwinChainSamePrice(match)
    */
   for ego = match; ego.twin != nil; ego = ego.twin {
     /* @-PriceSpanSet.MatchTruncate#Truncate
@@ -573,17 +599,21 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (bool, error) {
   }
   /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
 	existing, twinned := set.tree.Find(match.Price.Base, at)
-	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate */
+	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate
+   * (!)pre-condition[TCSP]: TwinChainSamePrice(match)
+   * (!)pre-condition[TCSP]: TwinChainSamePrice(existing)
+   * (!)pre-condition[TCSP]: existing.Price == match.Price
+   */
 	if twinned {
     /* @-PriceSpanSet.MatchTruncate#SpliceTwinsRight
-     * (?)pre-condition: UniqueTwins(existing)
-     * (?)pre-condition: UniqueTwins(match)
-     * (?)pre-condition: func () (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(set.tree.EverInserted, ego) { return false } } return true }()
+     * (!)pre-condition[TCU]: TwinChainUnique(existing)
+     * (!)pre-condition[TCU]: TwinChainUnique(match)
      */
     ego.twin = existing.twin // TPUC: none of existing.twin... { were the first at existing.Price, occur on match.twin... }
     /* @-PriceSpanSet.MatchTruncate#SpliceTwinsLeft:
-     * (?)post-condition: func () (bool) { for ego := match.twin; ego != nil; ego = ego.twin { if slices.Contains(set.tree.EverInserted, ego) { return false } } return true }()
-     * (?)post-condition: UniqueTwins(existing)
+     * (?)post-condition[TUP]: TreeExcludesTwins(existing)
+     * (?)post-condition[TCU]: TwinChainUnique(existing)
+     * (?)post-condition[TCSP]: TwinChainSamePrice(existing)
      */
     existing.twin = match // TPUC: none of match.twin... { were the first at existing.Price, occur on existing.twin... }
   }
