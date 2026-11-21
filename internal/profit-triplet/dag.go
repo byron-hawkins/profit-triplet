@@ -330,7 +330,7 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 
 // induction goal LRGR
 /* @^LesserRootsGraphReachable(set *PriceSpanSet, i *Item):
-       for root := range set.tree.roots {
+       for _, root := range set.tree.roots {
          if root.index < i.index && root.Price.Base < i.Price.Base {
            if !GraphReachable(root, i) { return false }
          }
@@ -338,8 +338,8 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        return true
  */
 
-// induction goal GRGR
-/* @^GreaterRootsGraphReachable(set *PriceSpanSet, i *Item):
+// induction goal GRGU
+/* @^GreaterRootsGraphUnreachable(set *PriceSpanSet, i *Item):
        for root := range set.tree.roots {
          if root.index >= i.index || root.Price.Base >= i.Price.Base {
            if GraphReachable(root, i) { return false }
@@ -356,28 +356,28 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
    • MPCI
    • MPCG
    • LRGR
-   • GRGR
+   • GRGU
  */
 
 /* @-PriceSpanSet.GraphStep()
  * (?)pre-condition: func () bool { for _, e := range set.tree.ItemSet { for t := e; t != nil; t = t.twin { if t.index >= item.index { return false } } } return true }()
  * (?)pre-condition: DirectedMonotonicGraph(set.roots)
  * (?)post-condition: LesserRootsGraphReachable(set, item)
- * (?)post-condition: GreaterRootsGraphReachable(set, item)
+ * (?)post-condition: GreaterRootsGraphUnreachable(set, item)
  */
 func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
 	node := nil
 	/* @-PriceSpanSet.GraphStep#TreeQuery: call
    * (?)post-condition: MinimalPriceCompatibleIntersection
    */
-	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base) // GRGR: assert unmatched are irrelevant
+	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base) // GRGU: assert unmatched are irrelevant
 	/* @-PriceSpanSet.GraphStep#TreeQueryMatchCheck: predicate */
 	if matched {
 	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate */
 		for _, match := range matches {
 	    /* @-PriceSpanSet.GraphStep#FauxMatch: predicate */ // TODO: relevant for [TPU] to show that no Item.twin points to `match`?
       if match.Price.Bound == item.Price.Base {
-        continue  // GRGR: assert not relevant
+        continue  // GRGU: assert not relevant
       }
 			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
 			if item.Price.Base > match.Price.Base {
@@ -386,13 +386,22 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
          * (?)post-condition: func () bool { for i := match.Price.Base; i < match.Price.Bound; i++ { x, _ := set.tree.AllIntersections(i, i); if !slices.Contains(x, match) { return false } }; return true }()
          * (?)post-condition: func () bool { for i := match.Price.Base; i < item.Price.Base; i++ { x, _ := set.tree.AllIntersections(i, i); if !slices.Contains(x, match) { return false } }; return true }()
          */
-				node, e = set.MatchTruncate(match, item.Price.Base) // 2 cases: { true: minimal proxy on truncated (LRGR), false: joined twin chain (LRGR }
+
+        // cases:
+        // 1: nil: will insert a minimal proxy on truncated `match` (LRGR)
+        // 2: node: joined twin chain, will link to predecessors of node (LRGR }
+
+				node, e = set.MatchTruncate(match, item.Price.Base)
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
 					/* @-PriceSpanSet.GraphStep#MatchReplaceError: panic */
 					panic(e)
 				}
-        /* @-PriceSpanSet.GraphStep#MatchLinkTwins: loophead, predicate */
+
+        /* @-PriceSpanSet.GraphStep#MatchLinkTwins: loophead, predicate
+         * (!)pre-condition[LRGR]: TwinPrefixProxy(node, match, item)
+         * (?)post-condition[LRGR]: TwinChainProxy(node, match, item)
+         */
 				for ego := match; ego != nil; ego = ego.twin {
 					/* @-PriceSpanSet.GraphStep#MatchLink: call
            * (?)pre-condition: ego.index < item.index
@@ -431,18 +440,27 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
            */
           set.roots = append(set.roots, item)
         } else {
-          /* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call
-           * (?)post-condition: func () bool { for ego := match; ego != nil; ego = ego.twin { for _, c := range ego.in { if !GraphReachable(c, item) { return false } } }; return true }
-           */
-          for _, predecessor := range match.in {  // 2 cases: equivalent proxy as direct twin or (price incompatible) peer (LRBR)
-            /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
-            if predecessor.out[len(predecessor.out)-1] == match {
-              /* @-PriceSpanSet.GraphBranchSamePrice: call
-               * (?)pre-condition: LesserRootsGraphReachable(set, predecessor)
-               * (?)post-condition: LesserRootsGraphReachable(set, item)
-               */
-              predecessor.Link(item)
-            } /* else a path exists over an intermediate item */
+          /* @-PriceSpanSet.GraphForkSamePrice: loophead, predicate, call */
+				  for ego := match; ego != nil; ego = ego.twin {
+            for _, predecessor := range ego.in {
+              /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
+              ptail := predecessor.out[len(predecessor.out)-1]
+              if ptail.Price.Bound < item.Price.Base {
+                /* @-PriceSpanSet.GraphSkipSamePrice:
+                 * (?)pre-condition[LRGR]: predecessor.Price.Bound < item.Price.Base && predecessor.out[len(predecessor.out)-1].Price.Base < item.Price.Base
+                 */
+                continue /* already proxied by a subsequent lesser price */
+              }
+              if ptail == ego {
+                /* @-PriceSpanSet.GraphBranchSamePrice: call
+                 * (!)pre-condition[LRGR]: predecessor.Price.Base < item.Price.Base && predecessor.Price.Bound == item.Price.Base
+                 * TODO: better to have full recursive LRGR later, and just focus on the step here?
+                 * (?)pre-condition: LesserRootsGraphReachable(set, predecessor)
+                 * (?)post-condition: LesserRootsGraphReachable(set, item)
+                 */
+                predecessor.Link(item)
+              }
+            }
           }
         }
 			}
@@ -461,15 +479,14 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
 }
 
 /* @^JoinHomogeneousLarger(existing *Item, joining *Item):
-       ispan := (existing.Price.Bound - existing.Price.Base)
-       tspan := (joining.Price.Bound - joining.Price.Base)
 
-       if (ispan >= tspan) { return false } // append truncated matched chain
+
+       if (xspan >= jspan) { return false } // append truncated matched chain
        for i := existing.twin; i != nil; i = i.twin {
-         if (ispan != (i.Price.Bound - i.Price.Base)) { return false }
+         if (xspan != (i.Price.Bound - i.Price.Base)) { return false }
        }
        for i := joining.twin; i != nil; i = i.twin {
-         if (tspan != (i.Price.Bound - i.Price.Base)) { return false }
+         if (jspan != (i.Price.Bound - i.Price.Base)) { return false }
        }
        return true
  */
@@ -494,18 +511,6 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
        if !slices.Contains(set.tree.ItemSet, node) { return false }
        for ego := node; ego != nil; ego = ego.twin {
          if (ego.index >= index) { return false }
-       }
-       return true
- */
-
-/* MutuallyExclusiveJoin(existing *Item, joining *Item):
-       if existing.index >= joining.index { return false }
-       if existing.Price.Bound == joining.Price.Bound { return false }
-
-       for left := existing; left != nil; left = left.twin {
-         for right := joining; right != nil; right = right.twin {
-           if left.index >= right.index { return false }
-         }
        }
        return true
  */
@@ -545,20 +550,34 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
        }
        return true
  */
- /* @^TwinChainSamePrice[TCSP](node *Item):
+/* @^TwinChainSamePrice[TCSP](node *Item):
          if node.twin == nil { return true }
          for ego := node.twin; ego != nil; ego = ego.twin {
            if node.Price != ego.Price { return false }
          }
          return true
  */
- /* @^TwinChainUnique[TCU](node *Item):
+/* @^TwinChainUnique[TCU](node *Item):
         unique := make(map[int]*Item)
         for ego := node; ego != nil; ego = ego.twin {
           if unique[ego.index] { return false }
           unique[ego.index] = ego
         }
         return true
+ */
+
+/* @^TwinPrefixProxy(node *Item, sentinel *Item, frontier *Item):
+       if node == nil { return true }
+       for ego := node; ego != sentinel; ego = ego.twin {
+         if !slices.Contains(ego.out, frontier) { return false }
+         if ego.Price.Base >= frontier.Price.Base || ego.Price.Bound != frontier.Price.Base { return false }
+       }
+ */
+/* @^TwinChainProxy(joined *Item, proxied *Item, frontier *Item):
+       for ego := (joined == nil ? proxied : joined); ego != nil; ego = ego.twin {
+         if !slices.Contains(ego.out, item) { return false }
+         if ego.Price.Base >= frontier.Price.Base || ego.Price.Bound != frontier.Price.Base { return false }
+       }
  */
 
 /* MPCI: AllIntersections returns an optimal set S of price compatible items
@@ -602,9 +621,11 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (*Item, error) {
    */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
   match.Price.Bound = at // LRGR: assert input supersedes match at new bound
+  /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
+	existing, twinned := set.tree.Find(match.Price.Base, at)
   var ego *Item
   /* @-PriceSpanSet.MatchTruncate#TruncateTwins: loophead, predicate
-   * (?)pre-condition: JoinHomogeneousLarger(existing, match)
+   * (?)pre-condition: (existing.Price.Bound - existing.Price.Base) < (match.Price.Bound - match.Price.Base)
    * (?)pre-condition[TCU]: MutuallyExclusivePriceChains(existing, match)
    * (?)post-condition[TCSP]: TwinChainSamePrice(match)
    */
@@ -614,8 +635,6 @@ func (set *PriceSpanSet) MatchTruncate(match *Item, at int) (*Item, error) {
      */
     ego.twin.Price.Bound = at // LRGR: assert input supersedes match at new bound
   }
-  /* @-PriceSpanSet.MatchTruncate#FindSameInterval: call */
-	existing, twinned := set.tree.Find(match.Price.Base, at)
 	/* @-PriceSpanSet.MatchTruncate#CheckSameInterval: predicate
    * (!)pre-condition[TCSP]: TwinChainSamePrice(match)
    * (!)pre-condition[TCSP]: TwinChainSamePrice(existing)
