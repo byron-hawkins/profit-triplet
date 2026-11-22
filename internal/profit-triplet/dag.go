@@ -328,11 +328,62 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        return false
 */
 
+/* @^GraphAnyReachable(a *Item, b []*Item):
+       q := fifo.New[*Item](1024)
+       for o := range a.out { q.Enqueue(o) }
+       visited := make(map[int]*Item)
+       for q.Len() > 0 {
+         i := q.Dequeue()
+         if slices.Contains(b, i) { return true }
+         visited[i.index] = i
+         for o := range i.out {
+           if !visited[o.index] { q.Enqueue(o) }
+         }
+       }
+       return false
+*/
+
 /* @^HasAlterEgo(node *Item, ego *Item):
        for i := node; i != nil; i = i.twin {
          if i == ego { return true }
        }
        return false
+ */
+
+/* @^ExcludedReachProxy(PriceSpanSet *set, proxies []*Item, threshold int):
+       for i := range set.tree.ItemSet {
+         if slices.Contains(proxies, i) { continue }
+         if i.Price.Base < threshold {
+           walk := i
+           proxied := false
+           stepped := true
+           for !proxied && stepped {
+             stepped := false
+             for _, o := range walk.out {
+               if slices.Contains(proxies, o) {
+                 proxied = true
+                 break
+               }
+               if o.Price.Base < threshold {
+                 walk = o
+                 stepped = true
+                 break
+               }
+             }
+           }
+           if !proxied { return false }
+         }
+       }
+ */
+
+ // TODO: these are quite heavy, is it sufficient just to give the induction steps for match exclusions?
+/* @^ExcludedIncompatible(PriceSpanSet *set, proxies []*Item, threshold int):
+       for i := range set.tree.ItemSet {
+         if slices.Contains(proxies, i) { continue }
+         if i.Price.Base > threshold {
+           if GraphAnyReachable(i, proxies) { return false }
+         }
+       }
  */
 
 // induction goal LRGR
@@ -381,6 +432,8 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
 	/* @-PriceSpanSet.GraphStep#TreeQueryMatchCheck: predicate */
 	if matched {
 	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate
+     * (?)pre-condition[LRGR]: ExcludedReachProxy(set, matches, item.Price.Base)
+     * (?)pre-condition[GRGU]: ExcludedIncompatible(set, matches, item.Price.Base)
      */
 		for _, match := range matches { // GRGU: assert unmatched are irrelevant
 	    /* @-PriceSpanSet.GraphStep#FauxMatch: predicate */
