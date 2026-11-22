@@ -21,7 +21,7 @@
 <data-model-annotation> ::= "/* @+" <data-model-tag> <data-model-name> " " <go> <comment-close>
 <data-model-tag> ::= <go-type> ": data-model"
 
-<abstract-model-annotation> ::= "/* @^" <abstraction-name> "(" <maybe-abstraction-parameters> "):\n" <go+> <comment-close>
+<abstract-model-annotation> ::= "/* @^" <abstraction-name> <maybe-induction-goal> "(" <maybe-abstraction-parameters> "):\n" <go+> <comment-close>
 <maybe-abstraction-parameters> ::= <abstraction-parameter-list> | ""
 <abstraction-parameter-list> ::= <abstraction-parameter> | <abstraction-parameter> ", " <abstraction-parameter-list>
 <abstraction-parameter> ::= <variable-name> " " <go-type>
@@ -30,10 +30,14 @@
 <abstraction-argument-list> ::= <go-scope-variable> | <go-scope-variable> ", " <abstraction-argument-list>
 
 <invariant-list> ::= <newline> <invariant> | <newline> <invariant> <invariant-list>
-<invariant> ::= "(?)" <invariant-role> ": " <invariant-definition>
-<invariant-definition> ::= <go> | <abstraction-invocation>
+<invariant> ::= <invariant-mode> <invariant-role> <maybe-induction-goal> ": " <invariant-definition>
+<invariant-mode> ::= "(!)" | "(?)"
 <invariant-role> ::= "pre-condition" | "post-condition"
+<invariant-definition> ::= <go> | <abstraction-invocation>
 <maybe-invariant-list> ::= <invariant-list> | ""
+
+<maybe-induction-goal> ::= <induction-goal> | ""
+<induction-goal> ::= "[" <induction-goal-tag> "]"
 
 <alias> ::= <maybe-newline> "alias " <alias-definition>
 <alias-definition> ::= <alias-inline> | <alias-model>
@@ -62,3 +66,4 @@
 <go-scope-variable> ::= (any variable identifier that is valid in the scope associated with the enclosing annotation)
 <function-signature> ::= (a non-trivial golang function signature)
 <element-id> ::= (an arbitrarily chosen name, referring to the <source-line> of the enclosing <element-annotation>)
+<induction-goal-tag> ::= (alpha-numeric identifier)
