@@ -328,6 +328,13 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        return false
 */
 
+/* @^HasAlterEgo(node *Item, ego *Item):
+       for i := node; i != nil; i = i.twin {
+         if i == ego { return true }
+       }
+       return false
+ */
+
 // induction goal LRGR
 /* @^LesserRootsGraphReachable(set *PriceSpanSet, i *Item):
        for _, root := range set.tree.roots {
@@ -370,27 +377,28 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
 	/* @-PriceSpanSet.GraphStep#TreeQuery: call
    * (?)post-condition: MinimalPriceCompatibleIntersection
    */
-	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base) // GRGU: assert unmatched are irrelevant
+	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base)
 	/* @-PriceSpanSet.GraphStep#TreeQueryMatchCheck: predicate */
 	if matched {
-	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate */
-		for _, match := range matches {
-	    /* @-PriceSpanSet.GraphStep#FauxMatch: predicate */ // TODO: relevant for [TPU] to show that no Item.twin points to `match`?
+	  /* @-PriceSpanSet.GraphStep#EachMatch: loophead, predicate
+     */
+		for _, match := range matches { // GRGU: assert unmatched are irrelevant
+	    /* @-PriceSpanSet.GraphStep#FauxMatch: predicate */
       if match.Price.Bound == item.Price.Base {
-        continue  // GRGU: assert not relevant
+	      /* @-PriceSpanSet.GraphStep#SkipFauxMatch:
+         * (?)pre-condition[GRGU]: func () bool { if len(match.out) == 0 { return false }; for o := range match.out { if o.Price.Base == item.Price.Base { return true } }; return false }()
+         */
+        continue
       }
-			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate */
+			/* @-PriceSpanSet.GraphStep#MatchBoundCheck: predicate
+       * (?)pre-condition[GRGU]: !slices.Contains(set.tree.roots, match) || match.Price.Base < item.Price.Base
+       */
 			if item.Price.Base > match.Price.Base {
 				e := error(nil)
 				/* @-PriceSpanSet.GraphStep#MatchTruncate: call
-         * (?)post-condition: func () bool { for i := match.Price.Base; i < match.Price.Bound; i++ { x, _ := set.tree.AllIntersections(i, i); if !slices.Contains(x, match) { return false } }; return true }()
-         * (?)post-condition: func () bool { for i := match.Price.Base; i < item.Price.Base; i++ { x, _ := set.tree.AllIntersections(i, i); if !slices.Contains(x, match) { return false } }; return true }()
+         * (?)post-condition: match.Price.Bounds == item.Price.Base
+         * (?)post-condition: HasAlterEgo(set.tree.Find(match.Price.Base, match.Price.Bounds), match)
          */
-
-        // cases:
-        // 1: nil: will insert a minimal proxy on truncated `match` (LRGR)
-        // 2: node: joined twin chain, will link to predecessors of node (LRGR }
-
 				node, e = set.MatchTruncate(match, item.Price.Base)
 				/* @-PriceSpanSet.GraphStep#MatchReplaceErrorCheck: predicate */
 				if e != nil {
@@ -446,19 +454,22 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
               /* @-PriceSpanSet.GraphForkSamePriceSuperseded: predicate */
               ptail := predecessor.out[len(predecessor.out)-1]
               if ptail.Price.Bound < item.Price.Base {
-                /* @-PriceSpanSet.GraphSkipSamePrice:
-                 * (?)pre-condition[LRGR]: predecessor.Price.Bound < item.Price.Base && predecessor.out[len(predecessor.out)-1].Price.Base < item.Price.Base
+                /* @-PriceSpanSet.GraphSkipSamePriceProxied:
+                 * (?)pre-condition[LRGR]: predecessor.Price.Bound < item.Price.Base && ptail.Price.Base < item.Price.Base
+                 * (?)pre-condition[LRGR]: GraphReachable(ptail, item)
                  */
                 continue /* already proxied by a subsequent lesser price */
               }
               if ptail == ego {
                 /* @-PriceSpanSet.GraphBranchSamePrice: call
                  * (!)pre-condition[LRGR]: predecessor.Price.Base < item.Price.Base && predecessor.Price.Bound == item.Price.Base
-                 * TODO: better to have full recursive LRGR later, and just focus on the step here?
-                 * (?)pre-condition: LesserRootsGraphReachable(set, predecessor)
-                 * (?)post-condition: LesserRootsGraphReachable(set, item)
                  */
                 predecessor.Link(item)
+              } else { /* `ptail` must be some other ego */
+                /* @-PriceSpanSet.GraphSkipSamePriceDuplicate
+                 * (?)pre-condition[LRGR]: HasAlterEgo(match, ptail)
+                 */
+                _ = ptail
               }
             }
           }
@@ -470,6 +481,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
      * (?)pre-condition[MPCI]: len(set.roots) == 0 || set.roots[len(set.roots)-1].Price.Base < item.Price.Base
      * (?)post-condition[MPCI]: PriceCompatible(item, item.Price.Base + 1, item.Price.Bound)
      * (?)post-condition[MPCG]: func() bool { for i := range set.tree.roots { if (PriceCompatible(i, item) { return false } } }()
+     * (?)pre-condition[GRGU]: func () bool { for root := range set.tree.roots { if root.Price.Base <= item.Price.Base { return false } }; return true }()
      */
     set.roots = append(set.roots, item)
   }
