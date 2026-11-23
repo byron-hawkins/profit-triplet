@@ -46,16 +46,40 @@ ordinary productions.
 ## Abstract-model declaration and reference
 
 An abstract-model declaration introduces a fresh abstract-model name and
-associates it with its body. An occurrence of that name in an invariant
-definition or model alias refers to the declaration; it does not introduce
-another declaration.
+associates it with its body. A reference resolves to an abstract-model
+declaration in the same Go source file as the annotation containing the
+reference; declarations may appear before or after their references.
 
-An abstraction name may be referenced only through the
-`<abstraction-invocation>` production. It must not be referenced within
-`<go>` or `<go+>` text, including as a Go identifier or function call.
-Consequently, a `<go>` or `<go+>` fragment cannot invoke an abstract model;
-abstraction references must occur only where the BNF explicitly permits an
-`<abstraction-invocation>`.
+A standalone model reference in an invariant definition or model alias uses
+`<abstraction-invocation>`, without an `@` prefix. Within `<go>` or `<go+>`,
+a model reference must instead use `<abstract-model-call>`, with an `@`
+prefix, in an expression position that accepts a `bool`. For example:
+
+```go
+if @TwinChainSamePrice(i) {
+    return true
+}
+```
+
+An unprefixed Go identifier or function call does not reference an abstract
+model. An `@` in a Go string or rune literal is not a model call.
+
+Each argument must be a variable identifier in scope at the call site, as
+specified by `<abstraction-invocation>`. The number and types of arguments
+must be valid for the model's declared parameters under Go function-call
+rules. A call evaluates the model body as a function returning `bool`, with
+arguments evaluated and bound to parameters as in a Go function call. The
+body is interpreted in the applicable modeled state; pointer and other
+reference values retain their ordinary Go behavior.
+
+Before making proof progress, statically inspect the abstract-model call
+graph for the source file. Each model is a vertex, and every
+`<abstract-model-call>` in its body is an edge to the referenced model,
+regardless of whether the call is reachable during evaluation. If a
+self-call or any other cycle is discovered, report a specification error
+and stop immediately; make no further proof progress or proof claim. If a
+proof outcome is required, report `UNKNOWN`, not `REFUTED`. If the graph
+cannot be checked, do not assume it is acyclic or proceed with the proof.
 
 Parsing still requires the source annotation to conform to the productions
 in `symbolic-abstraction.bnf`. The naming rules do not relax syntactic

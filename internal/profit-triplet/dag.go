@@ -80,7 +80,7 @@ import (
 
 /* @^TwinChainsSamePrice[TCSP](set *PriceSpanSet):
        for _, i := set.tree.ItemSet {
-         if !TwinChainSamePrice(i) { return false }
+         if !@TwinChainSamePrice(i) { return false }
        }
        return true
  */
@@ -97,7 +97,7 @@ import (
 
 /* @^TwinChainsUnique[TCU](set *PriceSpanSet):
        for _, i := set.tree.ItemSet {
-         if !TwinChainUnique(i) { return false }
+         if !@TwinChainUnique(i) { return false }
        }
        return true
  */
@@ -140,7 +140,7 @@ import (
 /* @^LesserRootsGraphReachable[LRGR](set *PriceSpanSet, i *Item):
        for _, root := range set.tree.roots {
          if root.index < i.index && root.Price.Base < i.Price.Base {
-           if !GraphReachable(root, i) { return false }
+           if !@GraphReachable(root, i) { return false }
          }
        }
        return true
@@ -198,7 +198,7 @@ import (
 /* @^GreaterRootsGraphUnreachable[GRGU](set *PriceSpanSet, i *Item):
        for _, root := range set.tree.roots {
          if root.index >= i.index || root.Price.Base >= i.Price.Base {
-           if GraphReachable(root, i) { return false }
+           if @GraphReachable(root, i) { return false }
          }
        }
        return true
@@ -302,8 +302,8 @@ import (
            for _, k := range set.all[j+1 : len(set.all)] {
              trio := { i, j, k }
              slices.SortFunc(trio, indexer)
-             c := GraphReachable(trio[0], trio[1]) && GraphReachable(trio[1], trio[2])
-             if c != PurchasableTrio(trio[0], trio[1], trio[2]) { return false }
+             c := @GraphReachable(trio[0], trio[1]) && @GraphReachable(trio[1], trio[2])
+             if c != @PurchasableTrio(trio[0], trio[1], trio[2]) { return false }
            }
          }
        }
@@ -352,7 +352,7 @@ import (
        for _, i := range set.tree.ItemSet {
          if slices.Contains(proxies, i) { continue }
          if i.Price.Base > threshold {
-           if GraphAnyReachable(i, proxies) { return false }
+           if @GraphAnyReachable(i, proxies) { return false }
          }
        }
  */

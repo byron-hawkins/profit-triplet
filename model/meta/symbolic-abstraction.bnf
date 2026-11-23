@@ -8,63 +8,70 @@
 <element-tag> ::= <type-prefix> <function> <element-locator>
 <type-prefix> ::= <go-type> "." | ""
 <element-locator> ::= "#" <element-id> | "()"
-<element-list> ::= <relates> <inline-elements> | <relates> <inline-elements> <invariant-list> | <relates> <invariant-list> | " "
-<inline-elements> ::= <element-label-list> | <element-label-list> <newline> <alias> | <alias>
+<element-list> ::= <relates> <inline-elements> | <relates> <inline-elements> <summary-invariant-list> | <relates> <summary-invariant-list> | " "
+<inline-elements> ::= <element-label-list> | <element-label-list> <newline> "  " <inline-alias> | <inline-alias>
 <element-label-list> ::= <element-label> | <element-label> ", " <element-label-list>
 <element-label> ::= "predicate" | "panic" | "loophead" | "call"
 <source-line> ::= (a single line of source code in the golang program)
 
-<summary-annotation> ::= "/* @+" <summary-tag> <relates> <alias> <maybe-invariant-list> <comment-close>
+<summary-annotation> ::= "/* @+" <summary-tag> <relates> <alias> <maybe-summary-invariant-list> <comment-close>
 <summary-tag> ::= <go-type> "." <function>
 <function> ::= <function-name> | <function-signature>
 
-<data-model-annotation> ::= "/* @+" <data-model-tag> <data-model-name> " " <go> <comment-close>
+<data-model-annotation> ::= "/* @+" <data-model-tag> " " <data-model-name> " " <go> <comment-close>
 <data-model-tag> ::= <go-type> ": data-model"
 
-<abstract-model-annotation> ::= "/* @^" <abstraction-name> <maybe-induction-goal> "(" <maybe-abstraction-parameters> ")" <maybe-equivalence-set> ":\n" <go+> <comment-close>
+<abstract-model-annotation> ::= "/* @^" <abstraction-name> <maybe-induction-goal> "(" <maybe-abstraction-parameters> ")" <maybe-equivalence-set> ":" <source-newline> <go+> <comment-close>
 <maybe-abstraction-parameters> ::= <abstraction-parameter-list> | ""
 <abstraction-parameter-list> ::= <abstraction-parameter> | <abstraction-parameter> ", " <abstraction-parameter-list>
 <abstraction-parameter> ::= <variable-name> " " <go-type>
 <abstraction-invocation> ::= <abstraction-name> "(" <maybe-abstraction-arguments> ")"
 <maybe-abstraction-arguments> ::= <abstraction-argument-list> | ""
 <abstraction-argument-list> ::= <go-scope-variable> | <go-scope-variable> ", " <abstraction-argument-list>
+<abstract-model-call> ::= "@" <abstraction-invocation>
 
-<invariant-list> ::= <newline> <invariant> | <newline> <invariant> <invariant-list>
+<maybe-summary-invariant-list> ::= <summary-invariant-list> | ""
+<summary-invariant-list> ::= <summary-invariant> | <summary-invariant> <summary-invariant-list>
+<summary-invariant> ::= <newline> "  " <invariant>
+<maybe-substitution-invariant-list> ::= <substitution-invariant-list> | ""
+<substitution-invariant-list> ::= <substitution-invariant> | <substitution-invariant> <substitution-invariant-list>
+<substitution-invariant> ::= <newline> "    " <invariant>
 <invariant> ::= <invariant-mode> <invariant-role> <maybe-induction-goal> ": " <invariant-definition>
 <invariant-mode> ::= "(!)" | "(?)"
 <invariant-role> ::= "pre-condition" | "post-condition"
 <invariant-definition> ::= <go> | <abstraction-invocation>
-<maybe-invariant-list> ::= <invariant-list> | ""
 
 <maybe-induction-goal> ::= <induction-goal> | ""
 <induction-goal> ::= "[" <induction-goal-tag> "]"
 <maybe-equivalence-set> ::= <equivalence-set> | ""
 <equivalence-set> ::= " <=> {" <induction-goal-list> "}"
-<induction-goal-list> ::= <induction-goal-tag> | <induction-goal-tag> "," <induction-goal-list>
+<induction-goal-list> ::= <induction-goal-tag> | <induction-goal-tag> "," <maybe-space> <induction-goal-list>
 
-<alias> ::= <maybe-newline> "alias " <alias-definition>
+<alias> ::= <inline-alias> | <newline> "  " <inline-alias>
+<inline-alias> ::= "alias " <alias-definition>
 <alias-definition> ::= <alias-inline> | <alias-model>
 <alias-inline> ::= <go> <substitution-list>
 <alias-model> ::= <abstraction-invocation> <substitution-list>
-<substitution-list> ::= <newline> <substitution> <substitution-list> | ""
-<substitution> ::= "%values[" <index> "]: " <value-list> <maybe-invariant-list>
+<substitution-list> ::= <newline> "  " <substitution> <substitution-list> | ""
+<substitution> ::= "%values[" <index> "]:" <value-list> <maybe-substitution-invariant-list>
 <value-list> ::= <value> | <value> <value-list>
 <value> ::= <newline> "  " <variable> " " <go-type> <relates> <go>
 <index> ::= (numeric, distinct per <alias>)
 <variable> ::= "%" <variable-name>
 
 <relates> ::= ":" <maybe-space>
-<maybe-newline> ::= <newline> | ""
 <newline> ::= <source-newline> " * "
 <source-newline> ::= "\n" | "\r\n"
 <maybe-space> ::= " " | ""
 <comment-close> ::= "*/" | "\n */" | "\r\n */"
 
 <go> ::= (free-form inline golang, non-empty, excluding newline and "*/",
-          possibly containing <variable> for <substitution-list>)
+          possibly containing <variable> for <substitution-list>,
+          extended with <abstract-model-call> in expression positions allowing type bool)
 <go+> ::= (free-form golang, non-empty, including newlines but excluding C-style comments and excluding
            an unmatched closing comment; taken semantically as <body> in `func(...) (bool) { <body> }`;
-           if <body> contains no `return`, assume a tacet prepended one, i.e., `return <body>`)
+           if <body> contains no `return`, assume a tacet prepended one, i.e., `return <body>`;
+           <body> may be extended with <abstract-model-call> in expression positions allowing type bool)
 <go-type> ::= (any valid golang type specifier)
 <go-scope-variable> ::= (any variable identifier that is valid in the scope associated with the enclosing annotation)
 <function-signature> ::= (a non-trivial golang function signature)
