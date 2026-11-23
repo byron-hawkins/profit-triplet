@@ -21,7 +21,7 @@
 <data-model-annotation> ::= "/* @+" <data-model-tag> <data-model-name> " " <go> <comment-close>
 <data-model-tag> ::= <go-type> ": data-model"
 
-<abstract-model-annotation> ::= "/* @^" <abstraction-name> <maybe-induction-goal> "(" <maybe-abstraction-parameters> "):\n" <go+> <comment-close>
+<abstract-model-annotation> ::= "/* @^" <abstraction-name> <maybe-induction-goal> "(" <maybe-abstraction-parameters> ")" <maybe-equivalence-set> ":\n" <go+> <comment-close>
 <maybe-abstraction-parameters> ::= <abstraction-parameter-list> | ""
 <abstraction-parameter-list> ::= <abstraction-parameter> | <abstraction-parameter> ", " <abstraction-parameter-list>
 <abstraction-parameter> ::= <variable-name> " " <go-type>
@@ -38,6 +38,9 @@
 
 <maybe-induction-goal> ::= <induction-goal> | ""
 <induction-goal> ::= "[" <induction-goal-tag> "]"
+<maybe-equivalence-set> ::= <equivalence-set> | ""
+<equivalence-set> ::= " <=> {" <induction-goal-list> "}"
+<induction-goal-list> ::= <induction-goal-tag> | <induction-goal-tag> "," <induction-goal-list>
 
 <alias> ::= <maybe-newline> "alias " <alias-definition>
 <alias-definition> ::= <alias-inline> | <alias-model>

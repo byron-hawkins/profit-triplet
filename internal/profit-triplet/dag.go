@@ -31,11 +31,30 @@ import (
  * @+interval.SearchTree.Find(a int, b int):
  * alias func (tree *interval.SearchTree) Find(a, b int) (*Item, bool) { for _, i := range tree.ItemSet { if i.Price.Base == a && i.Price.Bound == b { return i, true } } return nil, false }
  * @+interval.SearchTree.Insert(a int, b int, i *Item):
- * alias func (tree *interval.SearchTree) Insert(a, b int, i *Item) (error) { tree.ItemSet = append(tree.ItemSet, i); slices.SortFunc(tree.ItemSet, compare_items) return nil }
  * (?)pre-condition: i.Price.Base < i.Price.Bound && a == i.Price.Base && b == i.Price.Bound
  * (?)pre-condition: !slices.Contains(tree.ItemSet, i)
+ * alias func (tree *interval.SearchTree) Insert(a, b int, i *Item) (error) { tree.ItemSet = append(tree.ItemSet, i); slices.SortFunc(tree.ItemSet, compare_items) return nil }
  * @+interval.SearchTree.Delete(a int, b int):
  * alias func (tree *interval.SearchTree) Delete(a, b int) { tree.ItemSet = slices.Collect( func(yield func(*Item) bool) { for _, i := range tree.ItemSet { if i.Price.Base != a || i.Price.Bound != b { if !yield(i) { return } } } } ) }
+ */
+
+/******** TwinPricesUniquelyChained [TPUC] */
+
+/* @^TwinPricesUniquelyChained[TPUC](set *PriceSpanSet) <=> {TUP,TCSP,TCU}:
+       all := make([]*Item, set.ItemIndex.Load())
+       for _, node := range set.tree.ItemSet {
+         for ego := node; ego != nil; ego = ego.twin {
+           if ego.Price != node.Price { return false }
+           if ego.index < node.index { return false }
+           if all[ego.index] { return false }
+           all[ego.index] = ego
+         }
+       }
+
+       for i := range all {
+         if !i { return false }
+       }
+       return true
  */
 
 /******** TreeUniquePrices [TUP] */
@@ -664,18 +683,6 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
 	/* @-PriceSpanSet.GraphStep#return */
 	return node;
 }
-
-// induction goal: TwinPricesUniquelyChained (TPUC)
-// need an induction goal that only the first arriving instance of Price P occurs in set.tree.ItemSet
-// - subsequent instances matching P or proxied to P will be appended to P.twin
-// - twin chain is acyclic
-// - no twin on the chain occurs on any other twin chain
-// - no twin appears in set.tree.ItemSet
-// - every twin has a unique root present in set.tree.ItemSet
-//   - every twin root truncation will be applied to each twin in its chain
-/* @^TwinPricesUniquelyChained[TPUC](set *PriceSpanSet): [TUP,TCSP,TCU] */
-// TODO: necessary to assert that a node on no twin chain is in the tree?
-
 
 // possible induction goal: MinimalPriceCompatibleGraph (MPCG)
 // - no forward edges
