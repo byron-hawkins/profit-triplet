@@ -27,7 +27,7 @@
 <abstraction-parameter> ::= <variable-name> " " <go-type>
 <abstraction-invocation> ::= <abstraction-name> "(" <maybe-abstraction-arguments> ")"
 <maybe-abstraction-arguments> ::= <abstraction-argument-list> | ""
-<abstraction-argument-list> ::= <go-scope-variable> | <go-scope-variable> ", " <abstraction-argument-list>
+<abstraction-argument-list> ::= <go-expression> | <go-expression> ", " <abstraction-argument-list>
 <abstract-model-call> ::= "@" <abstraction-invocation>
 
 <maybe-summary-invariant-list> ::= <summary-invariant-list> | ""
@@ -59,11 +59,13 @@
 <index> ::= (numeric, distinct per <alias>)
 <variable> ::= "%" <variable-name>
 
+
 <relates> ::= ":" <maybe-space>
-<newline> ::= <source-newline> " * "
+<newline> ::= <source-newline> <spaces> "* "
 <source-newline> ::= "\n" | "\r\n"
+<spaces> ::= "" | " " <spaces>
 <maybe-space> ::= " " | ""
-<comment-close> ::= "*/" | "\n */" | "\r\n */"
+<comment-close> ::= "*/" | <source-newline> <spaces> "*/"
 
 <go> ::= (free-form inline golang, non-empty, excluding newline and "*/",
           possibly containing <variable> for <substitution-list>,
@@ -73,7 +75,17 @@
            if <body> contains no `return`, assume a tacet prepended one, i.e., `return <body>`;
            <body> may be extended with <abstract-model-call> in expression positions allowing type bool)
 <go-type> ::= (any valid golang type specifier)
-<go-scope-variable> ::= (any variable identifier that is valid in the scope associated with the enclosing annotation)
+<go-expression> ::= (a valid golang expression with the following limitations:
+                     - identifiers must occur in the scope of the invocation
+                     - no side effects or variable assignments are allowed
+                     - every dot-dereferenced pointer must be proven non-nil,
+                       otherwise analysis stops with an "unknown value flow" error
+                     - every subscripted variable must be resolved to the same kind of collection
+                       on all value flow paths, limited to base kinds { array, slice, map }, where:
+                       - array size and slice length may differ per value flow path
+                       - array/slice subscript(s) must resolve within bounds per path
+                       - missing map values resolve to the map value type's zero value
+                       - any resolution failure results in "unknown value flow")
 <function-signature> ::= (a non-trivial golang function signature)
 <element-id> ::= (an arbitrarily chosen name, referring to the <source-line> of the enclosing <element-annotation>)
 <induction-goal-tag> ::= (alpha-numeric identifier)

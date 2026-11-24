@@ -64,13 +64,34 @@ if @TwinChainSamePrice(i) {
 An unprefixed Go identifier or function call does not reference an abstract
 model. An `@` in a Go string or rune literal is not a model call.
 
-Each argument must be a variable identifier in scope at the call site, as
-specified by `<abstraction-invocation>`. The number and types of arguments
-must be valid for the model's declared parameters under Go function-call
-rules. A call evaluates the model body as a function returning `bool`, with
-arguments evaluated and bound to parameters as in a Go function call. The
-body is interpreted in the applicable modeled state; pointer and other
-reference values retain their ordinary Go behavior.
+Each argument is a `<go-expression>` and must meet the restrictions in the
+BNF. Its identifiers must resolve in the scope of the invocation; the
+expression must have no side effects or variable assignments. The complete
+argument list must be valid for the model's declared parameters under Go
+function-call rules, including the rules for multiple-result calls.
+
+For each incoming value flow, prove that every pointer dereferenced by a
+selector is non-nil. If this cannot be established, stop analysis with an
+`unknown value flow` error. Every subscripted variable must resolve to the
+same base collection kind on all value-flow paths: array, slice, or map.
+For each path, establish that array and slice subscripts are in bounds;
+array size and slice length may differ between paths. Slice bounds use
+length, not capacity. A missing map key, including a lookup in a nil map,
+produces the map value type's zero value, as in Go.
+
+Do not silently assume any of these properties. Any resolution failure
+stops analysis with an `unknown value flow` error; report `UNKNOWN` when a
+proof outcome is required. An expression known to violate a restriction is
+not a valid model argument. The same collection kind does not exempt the
+expression from Go's type-checking rules.
+
+A call evaluates the model body as a function returning `bool`, with
+arguments evaluated and bound to parameters according to Go function-call
+semantics. The body is interpreted in the applicable modeled state;
+pointer and other reference values retain their ordinary Go behavior.
+An otherwise valid expression that is outside the supported symbolic
+analysis subset yields `UNKNOWN` if it affects the proof; do not execute
+arbitrary project code to evaluate it.
 
 Before making proof progress, statically inspect the abstract-model call
 graph for the source file. Each model is a vertex, and every
