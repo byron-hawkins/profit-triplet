@@ -102,6 +102,19 @@ and stop immediately; make no further proof progress or proof claim. If a
 proof outcome is required, report `UNKNOWN`, not `REFUTED`. If the graph
 cannot be checked, do not assume it is acyclic or proceed with the proof.
 
+## Loop-head conditions
+
+For an annotation labeled `loophead`, evaluate its preconditions once per
+loop execution, before entering the loop, not again on each iteration.
+Evaluate its postconditions once at each loop exit, including an exit
+without executing the body and exits via `break`, `return`, or panic.
+A `continue` that remains within the loop is not an exit. A loop that does
+not exit has no exit evaluation.
+
+These are entry and exit conditions, not implicitly inductive loop
+invariants. Proving an exit condition may require a separate invariant
+established at entry and preserved on every iteration.
+
 Parsing still requires the source annotation to conform to the productions
 in `symbolic-abstraction.bnf`. The naming rules do not relax syntactic
 requirements or make a malformed annotation valid.

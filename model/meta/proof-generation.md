@@ -94,7 +94,7 @@ Translate annotations into explicit obligations before execution:
 - `call` identifies a call edge; use the callee's graph/body or summary.
 - A function call whose annotation does not include `call` is a `nop` for symbolic execution: do not expand its callee or apply any state effects from its body or summary. If the call's result is used, treat the result as unconstrained unless another annotation specifies it; do not infer a value from the ignored call.
 - `panic` identifies a panic terminal.
-- `loophead` marks a loop boundary; it is not itself an invariant.
+- `loophead` marks a loop boundary; its preconditions and postconditions are entry and exit conditions, not implicit inductive invariants. Evaluate them as specified in [symbolic-abstraction-rules.md](./symbolic-abstraction-rules.md#loop-head-conditions).
 - An invariant annotation must be classified as a precondition, loop invariant, or postcondition from its BNF meaning. If the grammar does not distinguish these roles, record the interpretation explicitly and do not assume one.
 - An alias/substitution provides symbolic semantics only for the cases it states. Each substitution case is a separate guarded path; its guard is not a global fact.
 - A `<maybe-invariant-list>` attached to a `<substitution>` constrains that substitution's applicability. The substitution may be selected only when all its value constraints and all attached preconditions hold. These conditions do not constrain sibling substitutions or become global preconditions for the enclosing function unless separately stated there. Attached postconditions describe the selected case's result and must be checked after evaluating it.

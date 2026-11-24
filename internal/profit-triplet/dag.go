@@ -137,31 +137,22 @@ const MaxPrice = 10000
 /* @^LesserRootsGraphReachable[LRGR](set *PriceSpanSet, i *Item):
        for _, root := range set.roots {
          if root.index < i.index && root.Price.Base < i.Price.Base {
-           if !@GraphReachable(root, i) { return false }
+           if !@PurchaseStepwiseReachable(root, i) { return false }
          }
        }
        return true
  */
 
-/* @^TwinPrefixProxy(node *Item, sentinel *Item, frontier *Item):
+/* @^TwinsProxied(node *Item, frontier *Item):
        if node == nil { return true }
-       for ego := node; ego != sentinel; ego = ego.twin {
+       for ego := node; ego != nil; ego = ego.twin {
          if !slices.Contains(ego.out, frontier) { return false }
          if ego.Price.Base >= frontier.Price.Base || ego.Price.Bound != frontier.Price.Base { return false }
        }
        return true
  */
 
-/* @^TwinChainProxy(joined *Item, proxied *Item, frontier *Item):
-       if joined == nil { joined = proxied }
-       for ego := joined; ego != nil; ego = ego.twin {
-         if !slices.Contains(ego.out, frontier) { return false }
-         if ego.Price.Base >= frontier.Price.Base || ego.Price.Bound != frontier.Price.Base { return false }
-       }
-       return true
- */
-
-/* @^GraphReachable(a *Item, b *Item):
+/* @^PurchaseStepwiseReachable(a *Item, b *Item):
        stack := NewStack()
        for _, o := range a.out { stack.push(o) }
        visited := make(map[int32]*Item)
@@ -180,7 +171,7 @@ const MaxPrice = 10000
 /* @^ExcludedReachProxy(set *PriceSpanSet, proxies []*Item, item *Item):
        for _, i := range set.tree.ItemSet {
          if i.Price.Base < item.Price.Base {
-           if !@ProxyReachable(i, proxies) { return false }
+           if !@ProxyPurchaseStepwiseReachable(i, proxies) { return false }
          }
        }
        return true
@@ -204,7 +195,7 @@ const MaxPrice = 10000
 /* @^GreaterRootsGraphUnreachable[GRGU](set *PriceSpanSet, i *Item):
        for _, root := range set.roots {
          if root.index >= i.index || root.Price.Base >= i.Price.Base {
-           if @GraphReachable(root, i) { return false }
+           if @PurchaseStepwiseReachable(root, i) { return false }
          }
        }
        return true
@@ -220,8 +211,8 @@ const MaxPrice = 10000
              if @PriceCompatibleItems(o, item) { return false }
            }
          } else if !@PriceCompatibleItems(i, item) {
-           if @ProxyReachable(i, matches) { return false }
-         } else if !@ProxyReachable(i, matches) {
+           if @ProxyPurchaseStepwiseReachable(i, matches) { return false }
+         } else if !@ProxyPurchaseStepwiseReachable(i, matches) {
            return false
          }
        }
@@ -251,7 +242,7 @@ const MaxPrice = 10000
        visited := make(map[int32]*Item)
        stack := NewStack()
        stack.push(pivot)
-       for stack.Len() > 0 {
+       for stack.size() > 0 {
          i := stack.pop()
          for _, o := range i.out {
            if (i.index >= o.index) { return false }
@@ -264,12 +255,12 @@ const MaxPrice = 10000
 
        visited = make(map[int32]*Item)
        stack.push(pivot)
-       for stack.Len() > 0 {
+       for stack.size() > 0 {
          o := stack.pop()
          for _, i := range o.in {
-           if visited[i.index] != nil { continue }
            if (o.index <= i.index) { return false }
            if (o.Price.Base <= i.Price.Base) { return false }
+           if visited[i.index] != nil { continue }
            visited[i.index] = i
            stack.push(i)
          }
@@ -319,7 +310,7 @@ const MaxPrice = 10000
            for _, item3 := range set.all[i+j+2 : len(set.all)] {
              trio := [3]*Item { item1, item2, item3 }
              slices.SortFunc(trio[:], indexer)
-             c := @GraphReachable(trio[0], trio[1]) && @GraphReachable(trio[1], trio[2])
+             c := @PurchaseStepwiseReachable(trio[0], trio[1]) && @PurchaseStepwiseReachable(trio[1], trio[2])
              if c != @PurchasableTrio(trio[0], trio[1], trio[2]) { return false }
            }
          }
@@ -400,7 +391,7 @@ const MaxPrice = 10000
 
 /******** [generic] */
 
-/* @^ProxyReachable(item *Item, proxies []*Item):
+/* @^ProxyPurchaseStepwiseReachable(item *Item, proxies []*Item):
        if slices.Contains(proxies, item) { return true }
 
        threshold := 0
@@ -593,12 +584,17 @@ func (set *PriceSpanSet) String() string {
  *   (?)post-condition: AllPathTriosPurchasable(set)
  */
 func (set *PriceSpanSet) GraphWalk(input []util.Input) {
-	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate */
+	/* @-PriceSpanSet.GraphWalk#EachInput: loophead, predicate
+   *   (?)pre-condition: TreeUniquePrices(set)
+   *   (!)post-condition: TreeUniquePrices(set)
+   */
 	for _, i := range input {
 		/* @-GraphWalk#AddItem: call */
     item := set.NewItem(i.Margin, i.Price)
 
-		/* @-PriceSpanSet.GraphWalk#Step: call */
+		/* @-PriceSpanSet.GraphWalk#Step: call
+     *   (!)pre-condition: TreeUniquePrices(set)
+     */
     node := set.GraphStep(item)
 		if node == nil {
 			/* @-PriceSpanSet.GraphWalk#InsertItem: call
@@ -643,6 +639,7 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
 func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
 	var node *Item
 	/* @-PriceSpanSet.GraphStep#TreeQuery: call
+   *   (?)post-condition[TUP]: !slices.Contains(matches, item)
    *   (?)post-condition: MinimalPriceCompatibleIntersection(set, matches, item)
    */
 	matches, matched := set.tree.AllIntersections(item.Price.Base, item.Price.Base)
@@ -713,7 +710,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
               if ptail.Price.Bound < item.Price.Base {
                 /* @-PriceSpanSet.GraphStep#SkipSamePriceProxied:
                  *   (?)pre-condition[LRGR]: predecessor.Price.Bound < item.Price.Base && ptail.Price.Base < item.Price.Base
-                 *   (?)pre-condition[LRGR]: GraphReachable(ptail, item)
+                 *   (?)pre-condition[LRGR]: PurchaseStepwiseReachable(ptail, item)
                  */
                 continue /* already proxied by a subsequent lesser price */
               }
@@ -763,29 +760,32 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
    *   (!)pre-condition[TUP]: TreeExcludesTwins(set, match)
    */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
-	/* @-PriceSpanSet.MatchProxy#TruncateNode: call */
-  match.Price.Bound = proxy.Price.Base
   /* @-PriceSpanSet.MatchProxy#FindSameInterval: call */
 	existing, twinned := set.tree.Find(match.Price.Base, proxy.Price.Base)
-  var ego *Item
+  /* @-PriceSpanSet.MatchProxy#FirstTwin */
+  ego := match
   /* @-PriceSpanSet.MatchProxy#TruncateTwins: loophead, predicate
-   *   (?)pre-condition: (existing.Price.Bound - existing.Price.Base) < (match.Price.Bound - match.Price.Base)
-   *   (?)pre-condition[TCU]: MutuallyExclusivePriceChains(existing, match)
-   *   (!)pre-condition[LRGR]: TwinPrefixProxy(existing, match, proxy)
+   *   (?)pre-condition: !twinned || (existing.Price.Bound - existing.Price.Base) < (match.Price.Bound - match.Price.Base)
+   *   (?)pre-condition[TCU]: !twinned || @MutuallyExclusivePriceChains(existing, match)
+   *   (!)pre-condition[LRGR]: TwinsProxied(existing, proxy)
    *   (?)post-condition[TCSP]: TwinChainSamePrice(match)
-   *   (?)post-condition[LRGR]: TwinChainProxy(existing, match, proxy)
+   *   (?)post-condition[LRGR]: TwinsProxied(match, proxy)
    */
-  for ego = match; ego.twin != nil; ego = ego.twin {
+  for {
     /* @-PriceSpanSet.MatchProxy#Truncate:
      *   (?)pre-condition: ego.Price.Bound > proxy.Price.Base
      */
-    ego.twin.Price.Bound = proxy.Price.Base
+    ego.Price.Bound = proxy.Price.Base
 		/* @-PriceSpanSet.MatchProxy#MatchLink: call
      *   (?)pre-condition[LRGR]: ego.index < proxy.index
      *   (?)pre-condition: ego.Price == match.Price
-     *   (?)post-condition[LRGR]: GraphReachable(ego, proxy)
+     *   (?)post-condition[LRGR]: PurchaseStepwiseReachable(ego, proxy)
      */
     ego.Link(proxy)
+		/* @-PriceSpanSet.MatchProxy#LastTwin: predicate */
+    if ego.twin == nil { break }
+		/* @-PriceSpanSet.MatchProxy#NextTwin */
+    ego = ego.twin
   }
 	/* @-PriceSpanSet.MatchProxy#CheckSameInterval: predicate
    *   (!)pre-condition[TCSP]: TwinChainSamePrice(match)
@@ -803,6 +803,7 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
      *   (?)post-condition[TUP]: TreeExcludesTwins(set, existing)
      *   (?)post-condition[TCU]: TwinChainUnique(existing)
      *   (?)post-condition[TCSP]: TwinChainSamePrice(existing)
+     *   (?)post-condition[LRGR]: TwinsProxied(existing, proxy)
      */
     existing.twin = match
 	  /* @-PriceSpanSet.MatchProxy#ElideSameInterval */
@@ -810,6 +811,7 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
   } else {
 		/* @-PriceSpanSet.MatchProxy#Insert: call
      *   (?)pre-condition[TUP]: !set.Contains(match)
+     *   (?)pre-condition[TUP]: match != item
      */
 		return set.tree.Insert(match.Price.Base, match.Price.Bound, match)
 	}
