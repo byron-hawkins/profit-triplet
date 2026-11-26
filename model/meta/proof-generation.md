@@ -2,6 +2,37 @@
 
 These rules describe how an agent can use BNF annotations, generated control-flow graphs, and a bounded amount of Go source analysis to attempt a proof. The goal is to make useful progress while guaranteeing that difficult analysis terminates with an explicit inconclusive result rather than running indefinitely or claiming an unsupported proof.
 
+For the proposed composition of tagged induction steps and abstract-model
+goals, see [induction-proof-strategy.md](./induction-proof-strategy.md).
+
+## Incremental proof-document workflow
+
+The working draft
+[`TreeTwinExclusivity.md`](../proof/TreeTwinExclusivity.md) develops an
+annotation-based induction proof in stages, separating the proof outline
+from annotation syntax and semantics:
+
+1. Keep a concise initial section stating the goal and a simple induction
+   outline. It may contain incomplete or inaccurate provisional statements;
+   it is not itself a proof.
+2. Maintain a second, working-draft section of proof obligations, each with
+   a strategy placeholder or a concrete approach. Develop the strategies
+   one at a time with the user, and restructure the obligations as needed.
+   Record unresolved assumptions and dependencies rather than treating a
+   proposed strategy as an established proof.
+3. Generally leave the initial outline intact while developing the
+   obligations, revising it only when necessary. Re-read the current
+   document before each round of work: the user may have edited it manually.
+   Preserve and incorporate those edits.
+4. Once the obligations and strategies are finalized, the intended next
+   step is a third section specifying a complete proof concisely using
+   annotations to identify code segments and constructs precisely, along
+   with any needed BNF additions. Do not assume those additions or their
+   semantics already exist.
+
+This progression may also guide other proof documents when appropriate,
+subject to the user's instructions for the task.
+
 ## Project-wide abstraction boundary
 
 For every proof in this project, annotations that model external components define their abstract semantics. They are not intended to describe or mirror the external component's concrete implementation. Prove properties up to and within the declared abstraction; do not inspect, execute, or prove refinement against dependency source unless a separate refinement proof is explicitly requested.

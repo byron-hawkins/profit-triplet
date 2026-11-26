@@ -687,6 +687,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
            *   (?)post-condition[TCU]: TwinChainIndexBounded(set, -1, match)
            *   (?)post-condition[TCU]: TwinChainUnique(match)
            *   (?)post-condition[TCSP]: TwinChainSamePrice(match)
+           *   (?)post-condition[TUP]: TreeExcludesTwins(set, match)
            */
           match.twin = item
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
@@ -811,7 +812,7 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
   } else {
 		/* @-PriceSpanSet.MatchProxy#Insert: call
      *   (?)pre-condition[TUP]: !set.Contains(match)
-     *   (?)pre-condition[TUP]: match != item
+     *   (?)pre-condition[TUP]: match != proxy
      */
 		return set.tree.Insert(match.Price.Base, match.Price.Bound, match)
 	}
