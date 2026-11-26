@@ -28,7 +28,7 @@ relevant transitions remain to be established.
 
 This section is a working draft. Obligations may be refined, combined, or restructured as the strategies are developed.
 
-### Proof scope and base case
+### PO.1 Proof scope and base case
 
 Define the item universe, initial state, and execution points covered by the proof. Establish an applicable empty-tree
 base case and account for items or pointers already present at entry.
@@ -46,55 +46,55 @@ base case and account for items or pointers already present at entry.
     - a single call with an array A of N input elements
     - multiple calls for which the concatenation of successive input arrays exactly matches that same A
 
-### Effect and control-flow coverage
+### PO.2 Effect and control-flow coverage
 
 Identify every operation that can change tree membership or a relevant `twin` target, including effects through aliases,
 calls, and exceptional paths. Establish non-interference for the remaining operations.
 
 **Strategy:** To be developed.
 
-### Tree deletion
+### PO.3 Tree deletion
 
 Show that `MatchProxy#Delete` preserves exclusivity and establish the membership facts needed by subsequent operations.
 
 **Strategy:** To be developed.
 
-### Fresh-item insertion
+### PO.4 Fresh-item insertion
 
 Show that the item inserted at `GraphWalk#InsertItem` is not a `twin` target, including across all relevant `GraphStep`
 iterations and branches.
 
 **Strategy:** To be developed.
 
-### Match reinsertion
+### PO.5 Match reinsertion
 
 Show that the item inserted at `MatchProxy#Insert` is not a `twin` target. Account for its status before deletion and
 any intervening changes.
 
 **Strategy:** To be developed.
 
-### Fresh-item splice
+### PO.6 Fresh-item splice
 
 Show that both assignments in `GraphStep#CheckSameInterval` preserve the property, including any relevant intermediate
 state.
 
 **Strategy:** To be developed.
 
-### Match-chain splice
+### PO.7 Match-chain splice
 
 Show that both assignments in `MatchProxy#CheckSameInterval` preserve the property, including the status of the deleted
 match and the existing chain's successor.
 
 **Strategy:** To be developed.
 
-### Match snapshot and iteration
+### PO.8 Match snapshot and iteration
 
 Establish the facts needed about each `match` from the query snapshot when it is processed, despite changes made during
 earlier iterations.
 
 **Strategy:** To be developed.
 
-### Relation to tree-rooted twin chains
+### PO.9 Relation to tree-rooted twin chains
 
 Determine what exclusivity implies for `TreeExcludesTwins`, and identify any separate head-membership or
 traversal-termination obligations. The exclusivity property alone does not establish acyclicity.
