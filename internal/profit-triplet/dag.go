@@ -574,12 +574,10 @@ func (set *PriceSpanSet) String() string {
 	return strings.Join(lines, "\n")
 }
 
-// TODO: possible to allow non-empty PSS, but requires that only this function ever changes a PSS
-
 /* @-PriceSpanSet.GraphWalk():
  *   (?)pre-condition: PriceBounds(input)
  *   (?)pre-condition: InputSizeBounds(set, input)
- *   (?)pre-condition: len(set.tree.ItemSet) == 0
+ *   (?)pre-condition: set.ItemIndex.Load() > 0 || len(set.tree.ItemSet) == 0
  *   (?)post-condition: PurchasableTriosOnPaths(set)
  *   (?)post-condition: AllPathTriosPurchasable(set)
  */

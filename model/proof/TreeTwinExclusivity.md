@@ -35,16 +35,30 @@ base case and account for items or pointers already present at entry.
 
 **Strategy:**
 
-- item universe: a set of `Item` having sequential indicies from 0 to no more than (math.MaxInt32 - 1)
-  - no duplicate indices
-  - no missing sequence steps
-- operations covered by the proof are entirely contained within `dag.go`, allowing external information for:
+- item universe: define an *instance* `PSS` of `PriceSpanSet` and type <PSS.I>, a set of `Item` strictly bound to `PSS`
+  - an `Item` instance `z` can only be an element of <PSS.I> under the following temporal constraint:
+    - define `GW.k` as the `k`th iteration of `@-PriceSpanSet.GraphWalk#EachInput`
+      - counter `k` does not reset at a subsequent invocation of `GraphWalk()`
+    - `z ∈ PSS.I` at `GW.k` iff it has been constructed in `PSS.NewItem()` during `GraphWalk` iteration `GW.i: i <= k`
+  - each `Item` in `T` is defined by `{ B | ∃ A ∈ PSS.I: A.twin == B, B ∈ PSS.I }'
+  - consider field `Item.twin` to have a derived type `*PSS.I` and therefore be strictly bound to instance `PSS`
+    - type `*PSS.I`, similar to a standard golang pointer, can be either `nil` or point to an element of <PSS.I>
+  - `Item` instances have sequential indicies from 0 to no more than (math.MaxInt32 - 1)
+  - no two `Item` instances should have the same index
+  - no index should be assigned to an `Item` until all prior indicies have been assigned (i.e., no gaps)
+  - an `Item` index is assigned exclusively in `PriceSpanSet.NewItem()`
+    - only this method may modify the `PriceSpanSet.ItemIndex`
+    - field `Item.index` may not be modified after construction
+- operations covered by the proof are strictly those specified within `dag.go`, allowing interpretation based on:
   - proof structure and process, e.g., documents in meta/
-  - code and annotation syntax and sedmantics, e.g., from the golang specification, from the annotation BNF, etc.
+  - code and annotation syntax and semantics, e.g., from the golang specification, from the annotation BNF, etc.
 - lifecycle of the proof is limited to a single invocation of `GraphWalk` on a freshly instantiated `PriceSpanSet`
-  - in practice, multiple calls are allowed, so the proof depends on the absolute equivalence between:
+  - in practice, multiple calls are allowed, so the proof should remain valid over an equivalence of pregressive state:
     - a single call with an array A of N input elements
-    - multiple calls for which the concatenation of successive input arrays exactly matches that same A
+    - multiple calls on a single instance of `PriceSpanSet`, where:
+      - concatenation of the successive input arrays exactly matches that same A
+      - freshness is only required for the first call
+      - no other `PriceSpanSet` methods are ever called externally
 
 ### PO.2 Effect and control-flow coverage
 

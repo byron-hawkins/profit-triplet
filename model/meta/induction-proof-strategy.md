@@ -8,6 +8,20 @@ annotations. It supplements
 development, not a claim that a checker or proof assistant implements it.
 Open semantic choices are identified below rather than silently resolved.
 
+## Modeling boundary
+
+These proofs concern the program under its declared abstract models, not the
+concrete implementation of modeled components. A model defines the semantics
+at the proof boundary; conformance or refinement of an implementation is
+outside the purpose and scope of these proofs. A practical failure or
+implementation mismatch does not invalidate a proof of the stated property
+under its modeled semantics and assumptions.
+
+Do not treat implementation conformance as a proof obligation or repeatedly
+raise it as a caveat in proof discussions. Check the models themselves for
+consistency and sufficiency, and report any limitations within the modeled
+proof.
+
 ## Proof environment
 
 Unless a proof explicitly states otherwise, assume:
@@ -29,6 +43,16 @@ restriction. These assumptions do not establish initial state, item
 freshness, pointer ownership, or a particular invariant: those remain
 separate premises or proof obligations. Specify the relevant item universe
 and check that the analyzed operations cover its possible effects.
+
+## Scope of strategy analysis
+
+When reviewing a strategy for a proof obligation, check whether each point
+belongs more closely to another obligation in the same document. If so,
+weigh its relevance before mentioning it. Minor points can be left for the
+other obligation; a point significantly related to the current strategy or
+one that significantly changes the other obligation may be worth noting,
+with a reference to where it is better addressed. Do not expand the current
+strategy's scope merely to resolve work assigned elsewhere.
 
 ## Proof components
 
