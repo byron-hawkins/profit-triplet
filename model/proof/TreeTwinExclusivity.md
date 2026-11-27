@@ -37,9 +37,12 @@ base case and account for items or pointers already present at entry.
 
 - item universe: define an *instance* `PSS` of `PriceSpanSet` and type <PSS.I>, a set of `Item` strictly bound to `PSS`
   - an `Item` instance `z` can only be an element of <PSS.I> under the following temporal constraint:
-    - define `GW.k` as the `k`th iteration of `@-PriceSpanSet.GraphWalk#EachInput`
+    - define `GW_k` as the `k`th entry into `@-PriceSpanSet.GraphWalk#EachInput`
       - counter `k` does not reset at a subsequent invocation of `GraphWalk()`
-    - `z ∈ PSS.I` at `GW.k` iff it has been constructed in `PSS.NewItem()` during `GraphWalk` iteration `GW.i: i <= k`
+    - define "execution up to `GW_k`" as all code paths up to that `k`th entry, including code outside the loop
+      - `GW_0` initiates execution and includes all code paths prior to the first entry `GW_1`
+    - define abstract execution position `P_k` as occurring after `GW_k` and prior to `GW_{k+1}`
+    - for any `P_k`, `z ∈ PSS.I` *iff* ` z` has been constructed in a `NewItem()` invocation that occurred up to `P_k`
   - each `Item` in `T` is defined by `{ B | ∃ A ∈ PSS.I: A.twin == B, B ∈ PSS.I }'
   - consider field `Item.twin` to have a derived type `*PSS.I` and therefore be strictly bound to instance `PSS`
     - type `*PSS.I`, similar to a standard golang pointer, can be either `nil` or point to an element of <PSS.I>

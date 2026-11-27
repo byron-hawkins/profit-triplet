@@ -33,6 +33,76 @@ introduces the name. Unless a more specific rule says otherwise, an
 abstraction name is unique among abstract-model declarations in the
 annotation set being parsed.
 
+## Abstract collection annotation placement
+
+An `<abstract-collection-annotation>` (`@=`) must appear immediately before
+the Go type declaration to which it applies. It associates the declared
+abstract collection name with that following type.
+
+An `<abstract-collection-instantiation>` (`@==`) must appear immediately
+after the struct field declaration to which it applies. It associates the
+named abstract collection with that field.
+
+These are source-placement constraints: both forms are annotations in the
+BNF, but their required Go source contexts are enforced by these rules.
+
+## Abstract collection semantics
+
+An abstract collection (AC) is declared with a kind (`set` or `list`), an
+element name, and a Go element type. Its state is associated with each
+instance of the Go type annotated by `@=`. Unless a corresponding abstract
+collection instantiation (ACI) supplies an initial value, the AC starts
+empty. An ACI field supplies the initial abstract state by interpreting its
+initial value according to the AC kind.
+
+An ACI associates a struct field with the named AC and states that the
+field's contents represent the AC. For a set AC, correspondence compares
+membership and ignores order and duplicates. For a list AC, correspondence
+compares the sequence, including order and duplicates. An ACI is optional;
+an AC without an ACI is purely abstract.
+
+A state annotation updates the named AC as if by assignment:
+
+```text
+AC = AC operator operand
+```
+
+Classify each operand from its statically resolved Go type; do not infer its
+role from runtime behavior:
+
+- If the operand's type is compatible with the AC element type, interpret it
+  as one element, i.e. a singleton operand.
+- Otherwise, an operand may be interpreted as a collection only when its
+  static type is a supported array, slice, or vector type and its element
+  type is compatible with the AC element type. A vector type is supported
+  only when its element type and ordered contents are explicitly available
+  from its declaration or declared model.
+- Do not interpret maps, structs, interfaces, iterators, or other aggregate
+  types as collection operands.
+- If the operand's type or element type cannot be statically resolved well
+  enough to classify it, reject it as insufficiently defined. If its type is
+  fully resolved but is not a compatible element or supported collection,
+  reject it as incompatible. Do not silently coerce either case.
+
+For set ACs, `∪`, `∩`, and `\` use ordinary set union, intersection, and
+difference. Duplicates are discarded and order is irrelevant. Set elements
+must have a defined equality relation; for this Go-oriented semantics,
+require a comparable element type and use Go `==`.
+
+For list ACs:
+
+- `∪` appends the operand sequence to the current list; a singleton operand
+  appends one element.
+- `∩` retains the longest common prefix of the current list and operand
+  sequence. A singleton operand is a one-element sequence.
+- `\` removes every occurrence in the current list of each element in the
+  operand sequence; a singleton operand removes every occurrence of that
+  element. For example, `[1,2,1,3,1,4,1,5] \ [3,1,3]` is `[2,4,5]`.
+
+List element equality is Go `==` under the same comparability requirement.
+The source expression's slice or vector order and multiplicity are
+preserved when forming its operand sequence.
+
 ## Why this is not encoded in the BNF
 
 BNF can describe the shape of an identifier token, but it cannot by itself

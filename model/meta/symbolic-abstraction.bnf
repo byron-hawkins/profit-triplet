@@ -2,13 +2,19 @@
    symbolic-abstraction-rules.md. Fresh-name uniqueness is a semantic
    constraint and is not expressed by these BNF productions. *)
 
-<annotation> ::= <element-annotation> | <summary-annotation> | <data-model-annotation> | <abstract-model-annotation>
+<annotation> ::= <element-annotation> |
+                 <summary-annotation> |
+                 <data-model-annotation> |
+                 <abstract-model-annotation> |
+                 <abstract-collection-annotation> |
+                 <abstract-collection-instantiation>
 
 <element-annotation> ::= "/* @-" <element-tag> <element-list> <comment-close> <source-newline> <source-line>
 <element-tag> ::= <type-prefix> <function> <element-locator>
 <type-prefix> ::= <go-type> "." | ""
 <element-locator> ::= "#" <element-id> | "()"
-<element-list> ::= <relates> <inline-elements> | <relates> <inline-elements> <summary-invariant-list> | <relates> <summary-invariant-list> | " "
+<element-list> ::= <relates> <maybe-inline-elements> <maybe-summary-invariant-list> <maybe-state-list>
+<maybe-inline-elements> ::= <inline-elements> | ""
 <inline-elements> ::= <element-label-list> | <element-label-list> <newline> "  " <inline-alias> | <inline-alias>
 <element-label-list> ::= <element-label> | <element-label> ", " <element-label-list>
 <element-label> ::= "predicate" | "panic" | "loophead" | "call"
@@ -30,6 +36,13 @@
 <abstraction-argument-list> ::= <go-expression> | <go-expression> ", " <abstraction-argument-list>
 <abstract-model-call> ::= "@" <abstraction-invocation>
 
+<abstract-collection-annotation> ::= "/* @=" <abstract-collection> " " <comment-close>
+<abstract-collection> ::= <abstract-set> | <abstract-list>
+<abstract-set> ::= "{" <abstract-data-structure> "}"
+<abstract-list> ::= "[" <abstract-data-structure> "]"
+<abstract-data-structure> ::= <abstract-collection-name> " " <go-type>
+<abstract-collection-instantiation> ::= "/* @==" <abstract-collection-name> " */"
+
 <maybe-summary-invariant-list> ::= <summary-invariant-list> | ""
 <summary-invariant-list> ::= <summary-invariant> | <summary-invariant> <summary-invariant-list>
 <summary-invariant> ::= <newline> "  " <invariant>
@@ -40,6 +53,11 @@
 <invariant-mode> ::= "(!)" | "(?)"
 <invariant-role> ::= "pre-condition" | "post-condition"
 <invariant-definition> ::= <go> | <abstraction-invocation>
+
+<maybe-state-list> ::= <state-list> | ""
+<state-list> ::= <state> | <state> <state-list>
+<state> ::= <newline> "  (+)state[" <abstract-collection-name> "]: " <state-operator> <go-expression>
+<state-operator> ::= "∪" | "∩" | "\\"
 
 <maybe-induction-goal> ::= <induction-goal> | ""
 <induction-goal> ::= "[" <induction-goal-tag> "]"

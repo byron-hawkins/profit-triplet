@@ -481,11 +481,12 @@ type Item struct {
 	twin *Item
 }
 
-/* Note: unsafe for concurrent execution */
+// Note: unsafe for concurrent execution
+/* @={I *Item} */
 type PriceSpanSet struct {
   ItemIndex atomic.Int32
-  roots []*Item   /* for proof purposes only, can be omitted for release build */
-  all []*Item     /* for proof purposes only, can be omitted for release build */
+  roots []*Item
+  all []*Item     /* @== I */
   tree *interval.SearchTree[*Item,int]
 }
 
@@ -506,16 +507,16 @@ func NewPriceSpanSet() (PriceSpanSet) {
  *   (?)pre-condition[IIP]: (set.ItemIndex.Load() < math.MaxInt32) && (set.ItemIndex.Load() >= int32(0))
  */
 func (set *PriceSpanSet) NewItem(margin int, price int) (*Item) {
-  /* @-Item#ConstructorWatermark: call */
+  /* @-NewItem#ConstructorWatermark: call */
   prior := set.ItemIndex.Load()
   if prior == math.MaxInt32 { panic("Error: PriceSpanSet.ItemIndex overflow") }
 
-  /* @-Item#Construct:
+  /* @-NewItem#Construct:
    *   (?)post-condition[IIP]: i.index <= set.ItemIndex.Load() && i.index >= prior
    *   (?)post-condition: i.Margin == margin && i.Price == PriceSpan{ price, math.MaxInt32 } && i.best == [3]int{ margin, 0, 0 } && len(i.in) == 0 && len(i.out) == 0 && i.twin == nil
    */
   i := &Item {
-    /* @-Item#ConstructIndex: call */
+    /* @-NewItem#ConstructIndex: call */
 		set.ItemIndex.Add(1) - 1,
 		margin,
 		PriceSpan { price, math.MaxInt32 },
@@ -524,6 +525,9 @@ func (set *PriceSpanSet) NewItem(margin int, price int) (*Item) {
 		make([]*Item, 0),
 		nil,
 	}
+  /* @-NewItem#UniverseAppend: call
+   *   (+)state[I]: ∪ i
+   */
   set.all = append(set.all, i)
   return i
 }
