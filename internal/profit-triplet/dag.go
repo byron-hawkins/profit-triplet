@@ -482,12 +482,16 @@ type Item struct {
 }
 
 // Note: unsafe for concurrent execution
-/* @={I *Item} */
+
+/* @={I *Item}
+ * @={N *Item}
+ * @={T *Item}
+ */
 type PriceSpanSet struct {
   ItemIndex atomic.Int32
   roots []*Item
-  all []*Item     /* @== I */
-  tree *interval.SearchTree[*Item,int]
+  all []*Item     /* @== as I */
+  tree *interval.SearchTree[*Item,int]   /* @== ItemSet as N */
 }
 
 func (set *PriceSpanSet) Contains(item *Item) bool {
@@ -603,6 +607,7 @@ func (set *PriceSpanSet) GraphWalk(input []util.Input) {
        *   (!)pre-condition[TUP]: !set.Contains(item)
        *   (?)post-condition[TUP]: slices.Contains(set.tree.ItemSet, item)
        *   (?)post-condition[MPCI]: MatchIncludes(set, item)
+       *   (+)state[N]: ∪ item
        */
 			e := set.tree.Insert(item.Price.Base, item.Price.Bound, item)
 			/* @-PriceSpanSet.GraphWalk#InsertItemErrorCheck: predicate */
@@ -690,6 +695,7 @@ func (set *PriceSpanSet) GraphStep(item *Item) (*Item) {
            *   (?)post-condition[TCU]: TwinChainUnique(match)
            *   (?)post-condition[TCSP]: TwinChainSamePrice(match)
            *   (?)post-condition[TUP]: TreeExcludesTwins(set, match)
+           *   (+)state[T]: ∪ item
            */
           match.twin = item
 					/* @-PriceSpanSet.GraphStep#ElideSameInterval */
@@ -761,6 +767,7 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
 	/* @-PriceSpanSet.MatchProxy#Delete: call
    *   (!)pre-condition[TCU]: TwinChainIndexBounded(set, -1, match)
    *   (!)pre-condition[TUP]: TreeExcludesTwins(set, match)
+   *   (+)state[N]: \ match
    */
 	set.tree.Delete(match.Price.Base, match.Price.Bound)
   /* @-PriceSpanSet.MatchProxy#FindSameInterval: call */
@@ -807,6 +814,7 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
      *   (?)post-condition[TCU]: TwinChainUnique(existing)
      *   (?)post-condition[TCSP]: TwinChainSamePrice(existing)
      *   (?)post-condition[LRGR]: TwinsProxied(existing, proxy)
+     *   (+)state[T]: ∪ match
      */
     existing.twin = match
 	  /* @-PriceSpanSet.MatchProxy#ElideSameInterval */
@@ -815,6 +823,7 @@ func (set *PriceSpanSet) MatchProxy(match *Item, proxy *Item) (error) {
 		/* @-PriceSpanSet.MatchProxy#Insert: call
      *   (?)pre-condition[TUP]: !set.Contains(match)
      *   (?)pre-condition[TUP]: match != proxy
+     *   (+)state[N]: ∪ match
      */
 		return set.tree.Insert(match.Price.Base, match.Price.Bound, match)
 	}

@@ -43,6 +43,13 @@ An `<abstract-collection-instantiation>` (`@==`) must appear immediately
 after the struct field declaration to which it applies. It associates the
 named abstract collection with that field.
 
+If the instantiation names a data model, resolve the `<data-model-name>` by
+exact spelling against the data-model declarations for the annotated
+field's type. The reference denotes that modeled member for the particular
+field instance, not a Go field with the same name. A missing or non-unique
+match is a specification error. If no data-model name is supplied, the
+instantiation refers directly to the annotated field.
+
 These are source-placement constraints: both forms are annotations in the
 BNF, but their required Go source contexts are enforced by these rules.
 
@@ -52,14 +59,14 @@ An abstract collection (AC) is declared with a kind (`set` or `list`), an
 element name, and a Go element type. Its state is associated with each
 instance of the Go type annotated by `@=`. Unless a corresponding abstract
 collection instantiation (ACI) supplies an initial value, the AC starts
-empty. An ACI field supplies the initial abstract state by interpreting its
-initial value according to the AC kind.
+empty. An ACI supplies the initial abstract state by interpreting the initial
+value of its referenced field or modeled member according to the AC kind.
 
-An ACI associates a struct field with the named AC and states that the
-field's contents represent the AC. For a set AC, correspondence compares
-membership and ignores order and duplicates. For a list AC, correspondence
-compares the sequence, including order and duplicates. An ACI is optional;
-an AC without an ACI is purely abstract.
+An ACI associates its referenced field or modeled member with the named AC
+and states that its contents represent the AC. For a set AC, correspondence
+compares membership and ignores order and duplicates. For a list AC,
+correspondence compares the sequence, including order and duplicates. An
+ACI is optional; an AC without an ACI is purely abstract.
 
 A state annotation updates the named AC as if by assignment:
 

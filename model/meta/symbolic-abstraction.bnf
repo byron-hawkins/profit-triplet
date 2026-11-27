@@ -36,12 +36,15 @@
 <abstraction-argument-list> ::= <go-expression> | <go-expression> ", " <abstraction-argument-list>
 <abstract-model-call> ::= "@" <abstraction-invocation>
 
-<abstract-collection-annotation> ::= "/* @=" <abstract-collection> " " <comment-close>
+<abstract-collection-annotation> ::= "/* " <abstract-collection-list> <collection-close>
+<abstract-collection-list> ::= <abstract-collection> | <abstract-collection> <newline> <abstract-collection-list>
 <abstract-collection> ::= <abstract-set> | <abstract-list>
-<abstract-set> ::= "{" <abstract-data-structure> "}"
-<abstract-list> ::= "[" <abstract-data-structure> "]"
+<abstract-set> ::= "@={" <abstract-data-structure> "}"
+<abstract-list> ::= "@=[" <abstract-data-structure> "]"
 <abstract-data-structure> ::= <abstract-collection-name> " " <go-type>
-<abstract-collection-instantiation> ::= "/* @==" <abstract-collection-name> " */"
+<abstract-collection-instantiation> ::= "/* @== " <maybe-data-model> "as " <abstract-collection-name> " */"
+<maybe-data-model> ::= <data-model-name> " " | ""
+<collection-close> ::= " */" | <source-newline> <spaces> "*/"
 
 <maybe-summary-invariant-list> ::= <summary-invariant-list> | ""
 <summary-invariant-list> ::= <summary-invariant> | <summary-invariant> <summary-invariant-list>
@@ -80,6 +83,7 @@
 
 <relates> ::= ":" <maybe-space>
 <newline> ::= <source-newline> <spaces> "* "
+<maybe-newline> ::= <newline> | ""
 <source-newline> ::= "\n" | "\r\n"
 <spaces> ::= "" | " " <spaces>
 <maybe-space> ::= " " | ""
@@ -92,7 +96,7 @@
            an unmatched closing comment; taken semantically as <body> in `func(...) (bool) { <body> }`;
            if <body> contains no `return`, assume a tacet prepended one, i.e., `return <body>`;
            <body> may be extended with <abstract-model-call> in expression positions allowing type bool)
-<go-type> ::= (any valid golang type specifier)
+<go-type> ::= (any valid single-line golang reference to an existing type, i.e., defined elsewhere)
 <go-expression> ::= (a valid golang expression with the following limitations:
                      - identifiers must occur in the scope of the invocation
                      - no side effects or variable assignments are allowed
