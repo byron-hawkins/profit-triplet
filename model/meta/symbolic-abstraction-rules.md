@@ -33,6 +33,38 @@ introduces the name. Unless a more specific rule says otherwise, an
 abstraction name is unique among abstract-model declarations in the
 annotation set being parsed.
 
+## Generic data models and summaries
+
+A data-model or summary tag may name a generic type with model type
+parameters, for example `interval.SearchTree[V,R]`. The type name resolves
+to an existing generic Go type declaration. The parameter names are distinct
+identifiers, fresh relative to Go type names in scope, and their number must
+match the generic declaration's type parameter count. They introduce type
+symbols scoped to that annotation, including its tag, model, alias, and
+conditions; they are not package-level Go declarations. Each annotation
+introduces its own parameters, even when another annotation uses the same
+names.
+
+To match such a tag to an instantiated type, require the same generic type
+declaration and bind the model parameters by position to its actual type
+arguments. For example, matching `interval.SearchTree[V,R]` to
+`interval.SearchTree[*Item,int]` binds `V` to `*Item` and `R` to `int`.
+Resolve and substitute references to those type symbols throughout the
+annotation before checking types, signatures, and expressions in the
+applicable modeled environment. Do not replace unrelated identifiers or
+text. The actual instantiation must satisfy the generic Go type's constraints.
+
+These annotations are templates: an instantiation is valid only if the
+substituted model or summary is valid for its actual type arguments. A
+template is not assumed valid for every instantiation, and an incompatible
+instantiation is a specification error.
+
+For data-model resolution, a model tagged with type `T` also matches a field
+of type `*T`; the referenced modeled member is associated with that field
+instance. Apply this rule to instantiated generic types as well. If multiple
+data-model declarations match the same field type and model name, the
+reference is non-unique and is a specification error.
+
 ## Abstract collection annotation placement
 
 An `<abstract-collection-annotation>` (`@=`) must appear immediately before
