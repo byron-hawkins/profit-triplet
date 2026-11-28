@@ -39,9 +39,10 @@ An `<abstract-collection-annotation>` (`@=`) must appear immediately before
 the Go type declaration to which it applies. It associates the declared
 abstract collection name with that following type.
 
-An `<abstract-collection-instantiation>` (`@==`) must appear immediately
-after the struct field declaration to which it applies. It associates the
-named abstract collection with that field.
+An `<abstract-collection-model>` (`@==`) must appear immediately after
+the struct field declaration to which it applies. When it contains an
+`<abstract-collection-instantiation>`, that qualifier associates the
+named abstract collection with the field.
 
 If the instantiation names a data model, resolve the `<data-model-name>` by
 exact spelling against the data-model declarations for the annotated
@@ -52,6 +53,44 @@ instantiation refers directly to the annotated field.
 
 These are source-placement constraints: both forms are annotations in the
 BNF, but their required Go source contexts are enforced by these rules.
+
+## Field mutation policies
+
+An `<abstract-immutable>` qualifier associates an immutable value property
+with each instance of the annotated field. Its initial value is established
+when the containing struct instance is initialized, including initialization
+to the zero value. Thereafter, the field's value must not change.
+
+An `<abstract-interface>` qualifier associates a partial immutability policy
+with each instance of the annotated field. Let `I` be its named interface.
+Mutation of the field is permitted only during an invocation of a method
+defined by `I`, including synchronous calls made during that invocation.
+The permission is not restricted to the receiver's own field instance.
+Any other attempt to mutate the field fails analysis with an interface
+policy violation.
+
+In analyzed code, a call to a method defined by `I` on a receiver whose
+static type implements `I` is governed by this policy. The method must be
+selected through `I`. If the receiver expression has a different static
+type, convert it to `I` before selecting the method, for example
+`I(foo).M()`. A direct call such as `foo.M()`, or a call through a method
+value selected as `foo.M`, is an interface policy violation, even if a
+surrounding invocation would otherwise permit the mutation. An expression
+already typed as `I` may select `M` directly. The conversion and call must
+be valid Go.
+
+These policies cover the field and its owned modeled contents, including
+changes made through aliases or by replacing an enclosing value. For example,
+the contents of a tree referenced by an annotated field are covered, but
+independent objects merely referenced by entries in the tree are not thereby
+covered. Initializing a new struct instance establishes its initial state;
+subsequent changes to an existing instance remain subject to its policies.
+An abstract collection state update does not itself grant permission to
+mutate the corresponding field or its owned contents.
+
+A known policy violation invalidates policy-dependent analysis. If compliance
+cannot be established, including because aliasing or ownership cannot be
+resolved, report `UNKNOWN` rather than assuming compliance.
 
 ## Abstract collection semantics
 
